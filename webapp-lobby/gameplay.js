@@ -1804,14 +1804,23 @@
   // Player names from lobby (localStorage)
   try {
     const storedName = (typeof localStorage !== 'undefined' && localStorage.getItem('mmtp-player-name')) || null;
-    if (storedName) {
-      gameState.players[0].name = storedName;
-      const handP1Label = document.querySelector('#hand-p1 .hand-label');
-      if (handP1Label) handP1Label.textContent = storedName;
+    if (onlineParam === '1') {
+      // Online mode: assign stored name to OUR player slot (myPlayerId), not always slot 0
+      // Server will provide authoritative names via gameState updates
+      if (storedName) {
+        gameState.players[myPlayerId - 1].name = storedName;
+      }
+    } else {
+      // Local / bot mode: P1 is always the local player
+      if (storedName) {
+        gameState.players[0].name = storedName;
+      }
+      if (gameRules.allowBots) {
+        gameState.players[1].name = 'Bot';
+      }
     }
-    if (gameRules.allowBots) {
-      gameState.players[1].name = 'Bot';
-    }
+    const handP1Label = document.querySelector('#hand-p1 .hand-label');
+    if (handP1Label) handP1Label.textContent = gameState.players[0].name;
     const handP2Label = document.querySelector('#hand-p2 .hand-label');
     if (handP2Label) handP2Label.textContent = gameState.players[1].name;
 
@@ -2548,65 +2557,79 @@
   }
 
   function updateTimer() {
-    // Calculate actual time remaining (real-world time, not affected by speed)
-    // This is what the timer would be if running at 1x speed
-    const actualTimeElapsed = gameState.actualTimeElapsed || 0;
-    const actualTimeRemaining = Math.max(0, gameState.turnTimerStart - actualTimeElapsed);
-    const actualSec = Math.ceil(actualTimeRemaining);
-    const actualMinutes = Math.floor(actualSec / 60);
-    const actualSeconds = actualSec % 60;
-    const actualText = `${String(actualMinutes).padStart(2, '0')}:${String(actualSeconds).padStart(2, '0')}`;
-    
-    // Calculate estimated/game time remaining (affected by speed multiplier)
-    // This is what turnTimer shows (game time, decremented by speed)
-    const estimatedTimeRemaining = Math.max(0, gameState.turnTimer);
-    const estimatedSec = Math.ceil(estimatedTimeRemaining);
-    const estimatedMinutes = Math.floor(estimatedSec / 60);
-    const estimatedSeconds = estimatedSec % 60;
-    const estimatedText = `${String(estimatedMinutes).padStart(2, '0')}:${String(estimatedSeconds).padStart(2, '0')}`;
-    
-    // Display both times when speed is increased
-    if (timerValue) {
-      if (gameSpeedMultiplier > 1.0) {
-        // Show both actual (real time) and estimated (game time) when speed is increased
-        timerValue.textContent = `${actualText} (game: ${estimatedText})`;
-        timerValue.title = `Actual (real time): ${actualText} | Game time: ${estimatedText} | Speed: ${gameSpeedMultiplier.toFixed(1)}x`;
-      } else {
-        // Normal speed: just show actual time (they're the same)
-        timerValue.textContent = actualText;
-        timerValue.title = `Time remaining: ${actualText}`;
+    let displaySec, displayText;
+
+    if (onlineGame) {
+      // ── Online mode: use server-authoritative turnTimer directly ──
+      displaySec = Math.max(0, Math.ceil(gameState.turnTimer || 0));
+      const m = Math.floor(displaySec / 60);
+      const s = displaySec % 60;
+      displayText = `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
+
+      if (timerValue) {
+        timerValue.textContent = displayText;
+        timerValue.title = `Time remaining: ${displayText}`;
       }
-    }
-    
-    if (timerFloating) {
-      const valueEl = timerFloating.querySelector('.timer-floating-value');
-      if (valueEl) {
+      if (timerFloating) {
+        const valueEl = timerFloating.querySelector('.timer-floating-value');
+        if (valueEl) valueEl.textContent = displayText;
+      }
+    } else {
+      // ── Local mode: use local actualTimeElapsed calculation ──
+      // Calculate actual time remaining (real-world time, not affected by speed)
+      const actualTimeElapsed = gameState.actualTimeElapsed || 0;
+      const actualTimeRemaining = Math.max(0, gameState.turnTimerStart - actualTimeElapsed);
+      const actualSec = Math.ceil(actualTimeRemaining);
+      const actualMinutes = Math.floor(actualSec / 60);
+      const actualSeconds = actualSec % 60;
+      const actualText = `${String(actualMinutes).padStart(2, '0')}:${String(actualSeconds).padStart(2, '0')}`;
+      
+      // Calculate estimated/game time remaining (affected by speed multiplier)
+      const estimatedTimeRemaining = Math.max(0, gameState.turnTimer);
+      const estimatedSec = Math.ceil(estimatedTimeRemaining);
+      const estimatedMinutes = Math.floor(estimatedSec / 60);
+      const estimatedSeconds = estimatedSec % 60;
+      const estimatedText = `${String(estimatedMinutes).padStart(2, '0')}:${String(estimatedSeconds).padStart(2, '0')}`;
+      
+      // Display both times when speed is increased
+      if (timerValue) {
         if (gameSpeedMultiplier > 1.0) {
-          valueEl.textContent = `${actualText} (game: ${estimatedText})`;
+          timerValue.textContent = `${actualText} (game: ${estimatedText})`;
+          timerValue.title = `Actual (real time): ${actualText} | Game time: ${estimatedText} | Speed: ${gameSpeedMultiplier.toFixed(1)}x`;
         } else {
-          valueEl.textContent = actualText;
+          timerValue.textContent = actualText;
+          timerValue.title = `Time remaining: ${actualText}`;
         }
       }
+      
+      if (timerFloating) {
+        const valueEl = timerFloating.querySelector('.timer-floating-value');
+        if (valueEl) {
+          if (gameSpeedMultiplier > 1.0) {
+            valueEl.textContent = `${actualText} (game: ${estimatedText})`;
+          } else {
+            valueEl.textContent = actualText;
+          }
+        }
+      }
+      displaySec = actualSec;
     }
 
     // Timer tick sounds (only once per second, only for human player's turn)
     if (window.SFX && !timerInfinite && gameState.activePlayer === myPlayerId) {
-      const prevSec = Math.ceil(Math.max(0, gameState.turnTimerStart - (actualTimeElapsed - 0.1)));
-      if (actualSec !== prevSec && actualSec > 0) {
-        if (actualSec <= 5) {
-          SFX.play('timerUrgent');
-        } else if (actualSec <= 10) {
-          SFX.play('timerTick');
-        }
+      if (displaySec <= 5) {
+        SFX.play('timerUrgent');
+      } else if (displaySec <= 10) {
+        SFX.play('timerTick');
       }
     }
 
-    // Colour warnings based on actual time
+    // Colour warnings based on time remaining
     const root = document.body;
     root.classList.remove('timer-warning', 'timer-danger');
-    if (actualSec <= 5) {
+    if (displaySec <= 5) {
       root.classList.add('timer-danger');
-    } else if (actualSec <= 15) {
+    } else if (displaySec <= 15) {
       root.classList.add('timer-warning');
     }
   }
@@ -3339,7 +3362,10 @@
     updateDeckCount();
     renderHands();
     renderDiscardPile(); // Initial render of discard pile
-  startTimer();
+  // Only start local timer for non-online games (online timer is server-managed)
+  if (onlineParam !== '1') {
+    startTimer();
+  }
 
   // Game-over tab switching (one-time setup via delegation)
   if (gameOverModal) {
@@ -3363,7 +3389,8 @@
   playfield.setAttribute('tabindex', '0');
   
   // Start multiplayer sync polling (client reads, host writes on actions)
-  if (roomCode) {
+  // Skip for online games — server handles sync via WebSocket
+  if (roomCode && onlineParam !== '1') {
     syncInterval = setInterval(() => {
       if (!isHost) {
         syncFromStorage();

@@ -230,13 +230,21 @@
       }));
     }
 
-    // Player names
+    // Player names (authoritative from server)
     if (serverState.players) {
       serverState.players.forEach(p => {
         if (gameState.players[p.playerId - 1]) {
           gameState.players[p.playerId - 1].name = p.name;
         }
       });
+      // Update hand labels and score labels with authoritative names
+      const handP1Label = document.querySelector('#hand-p1 .hand-label');
+      const handP2Label = document.querySelector('#hand-p2 .hand-label');
+      if (handP1Label) handP1Label.textContent = gameState.players[0].name;
+      if (handP2Label) handP2Label.textContent = gameState.players[1].name;
+      const scoreLabels = document.querySelectorAll('.score-label');
+      if (scoreLabels[0]) scoreLabels[0].textContent = (gameState.players[0].name || 'P1') + ':';
+      if (scoreLabels[1]) scoreLabels[1].textContent = (gameState.players[1].name || 'P2') + ':';
     }
 
     // Target, turn, timer, deck
@@ -259,6 +267,7 @@
     GP.updateScores();
     GP.updateTimer();
     GP.updateTurn();
+    GP.updateTarget();
     GP.updateDeckCount();
     // updateExpressionHint is a no-op placeholder
     if (GP.updateExpressionHint) GP.updateExpressionHint();
