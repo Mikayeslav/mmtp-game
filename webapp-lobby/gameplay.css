@@ -2285,7 +2285,7 @@ body {
   border: 1px solid rgba(255,255,255,0.15);
   border-right: none;
   color: #fff;
-  width: 36px;
+    width: 36px;
   height: 44px;
   display: flex;
   flex-direction: column;
@@ -2397,11 +2397,11 @@ body {
 .expr-history-item .expr-player.p2 { color: #ef5350; }
 
 .expr-history-item .expr-text {
-  font-size: 12px;
+    font-size: 12px;
   color: #e0e0e0;
   font-family: 'Consolas', 'Monaco', monospace;
   word-break: break-all;
-}
+  }
 
 .expr-history-item .expr-meta {
   font-size: 9px;
@@ -2473,7 +2473,7 @@ body {
   border-radius: 10px;
   min-width: 16px;
   text-align: center;
-}
+  }
 
 .chat-content {
   background: rgba(30, 30, 36, 0.95);
@@ -2545,7 +2545,7 @@ body {
 .chat-msg.system-msg .chat-text {
   color: #78909c;
   font-style: italic;
-  font-size: 11px;
+    font-size: 11px;
 }
 
 .chat-input-bar {

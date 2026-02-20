@@ -10,7 +10,7 @@ WORKDIR /app
 COPY webapp-lobby/server/package*.json ./webapp-lobby/server/
 
 # Install dependencies
-RUN cd webapp-lobby/server && npm ci --omit=dev
+RUN cd webapp-lobby/server && npm install --omit=dev
 
 # Copy the full webapp
 COPY webapp-lobby/ ./webapp-lobby/

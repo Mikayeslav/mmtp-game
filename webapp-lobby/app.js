@@ -874,10 +874,13 @@
         const simulatedReady = state.simulatedP2Ready;
         const allRealReady = realPlayers.length >= 1 && realPlayers.every(p => p.ready);
         canStart = allRealReady && simulatedReady;
+        console.log('[renderLobby] canStart calc: isHost=' + isHost + ' simulateP2=' + state.simulateP2 + ' realPlayers=' + realPlayers.length + ' allRealReady=' + allRealReady + ' simulatedReady=' + simulatedReady + ' canStart=' + canStart + ' players=' + JSON.stringify(players.map(p => ({tabId:p.tabId,ready:p.ready}))));
       } else {
         // Without simulate: need 2+ real players, all ready
         canStart = players.length >= 2 && players.every((p) => p.ready);
       }
+    } else {
+      console.log('[renderLobby] canStart: NOT host');
     }
     
     if (btnStart) {
@@ -919,7 +922,7 @@
     if (hostRoomCode && state.isHost && state.roomCode) {
       hostRoomCode.textContent = state.roomCode;
     }
-    updateInviteLinkPreview();
+    if (App.updateInviteLinkPreview) App.updateInviteLinkPreview();
 
     if (state.roomCode && statusEl && !state.joinPending && Date.now() >= state.copyFeedbackUntil) {
       const effectiveCount = state.simulateP2 ? players.length + 1 : players.length;
@@ -1096,18 +1099,20 @@
     }
 
     // ── Fallback: localStorage host (bot / offline play) ──
-    // Restore simulateP2 state if it was previously enabled
+    // If we were in an online room, leave it first
+    if (state.isOnlineRoom && window.MMtpNet && MMtpNet.isOnline) {
+      try { await MMtpNet.leaveRoom(); } catch (e) { /* ignore */ }
+    }
+    state.isOnlineRoom = false;  // ensure local path is used from now on
+    
+    // Preserve the current checkbox state (user may have just toggled it)
+    const userWantsBot = wantBot;
+    
+    // Restore simulateP2 state from last session (only if user hasn't explicitly changed it)
     try {
       const savedLobbyState = localStorage.getItem(STORAGE_LOBBY_STATE);
       if (savedLobbyState) {
         const parsed = JSON.parse(savedLobbyState);
-        if (parsed.simulateP2 !== undefined) {
-          state.simulateP2 = parsed.simulateP2;
-          state.simulatedP2Ready = parsed.simulatedP2Ready || false;
-          if (simulateP2Checkbox) {
-            simulateP2Checkbox.checked = state.simulateP2;
-          }
-        }
         if (botDifficultySelect && state.rules.botDifficulty) {
           botDifficultySelect.value = state.rules.botDifficulty;
         }
@@ -1115,6 +1120,11 @@
     } catch (e) {
       console.warn('Failed to restore simulateP2 state:', e);
     }
+    
+    // Always use the current checkbox state — don't let saved state override it
+    state.simulateP2 = userWantsBot;
+    state.simulatedP2Ready = userWantsBot; // Auto-ready bot when enabled
+    if (simulateP2Checkbox) simulateP2Checkbox.checked = userWantsBot;
     
     const code = generateUniqueRoomCode();
     state.mode = 'lobby';
@@ -1322,9 +1332,11 @@
 
   async function onStart() {
     if (window.SFX) SFX.play('click');
-    // ── Online mode ──
-    if (state.isOnlineRoom && window.MMtpNet && MMtpNet.isOnline) {
+    console.log('[onStart] state.isOnlineRoom=' + state.isOnlineRoom + ' isHost=' + state.isHost + ' simulateP2=' + state.simulateP2 + ' simulatedP2Ready=' + state.simulatedP2Ready + ' mode=' + state.mode);
+    // ── Online mode (skip when playing with bot — bots are local-only) ──
+    if (state.isOnlineRoom && window.MMtpNet && MMtpNet.isOnline && !state.simulateP2) {
       const players = state.players;
+      console.log('[onStart] Online path: players=' + JSON.stringify(players));
       if (!state.isHost || players.length < 2 || !players.every(p => p.ready)) {
         setStatus('Cannot start: need 2 ready players', 'warning');
         return;
@@ -1341,13 +1353,57 @@
     }
 
     // ── Local mode ──
+    // Force local state when playing with bot (user may have toggled bot
+    // on an existing online room without re-hosting)
+    if (state.simulateP2 && state.isOnlineRoom) {
+      console.log('[onStart] Bot active on online room — switching to local');
+      state.isOnlineRoom = false;
+      if (window.MMtpNet && MMtpNet.isOnline) {
+        try { MMtpNet.leaveRoom(); } catch (e) { /* ignore */ }
+      }
+    }
+
     const players = getEffectivePlayers();
-    if (!state.isHost || players.length < 2 || !players.every((p) => p.ready)) return;
+    console.log('[onStart] Local path: players=' + JSON.stringify(players));
+    if (!state.isHost) {
+      console.log('[onStart] BLOCKED: not host');
+      setStatus('Only the host can start the game', 'warning');
+      return;
+    }
+    if (players.length < 2) {
+      console.log('[onStart] BLOCKED: need 2 players');
+      setStatus('Need 2 players — enable bot or wait for someone to join', 'warning');
+      return;
+    }
+    if (!players.every((p) => p.ready)) {
+      console.log('[onStart] BLOCKED: not all ready');
+      setStatus('All players must be ready before starting', 'warning');
+      return;
+    }
     if (!validateRules()) {
+      console.log('[onStart] BLOCKED: rules invalid');
       setStatus('Please fix rule errors before starting', 'error');
       return;
     }
-    const room = readRoom();
+    let room = readRoom();
+    // If no room in localStorage (e.g. bot toggled on an online room), create one now
+    if (!room && state.simulateP2) {
+      console.log('[onStart] No local room found — creating ephemeral room for bot game');
+      const code = state.roomCode || generateUniqueRoomCode();
+      state.roomCode = code;
+      room = {
+        roomCode: code,
+        hostTabId: tabId,
+        players: players.filter(p => p.tabId !== 'simulated').map(p => ({
+          tabId: p.tabId, name: p.name, ready: p.ready, isHost: p.isHost,
+        })),
+        rules: state.rules,
+        startRequested: false,
+        createdAt: state.roomCreatedAt || Date.now(),
+      };
+      writeRoom(room);
+    }
+    console.log('[onStart] room=' + (room ? 'exists' : 'NULL'));
     if (!room) return;
     state.stats.lastPlayed = Date.now();
     saveStats();
@@ -1779,7 +1835,7 @@
   // Copy invite link button
   if (btnCopyInvite) {
     btnCopyInvite.addEventListener('click', function () {
-      const url = getInviteUrl();
+      const url = App.getInviteUrl ? App.getInviteUrl() : '';
       if (!url || !state.roomCode) return;
       try {
         navigator.clipboard.writeText(url);
@@ -2022,7 +2078,7 @@
   
   simulateP2Checkbox.addEventListener('change', () => {
     state.simulateP2 = simulateP2Checkbox.checked;
-    state.simulatedP2Ready = false;
+    state.simulatedP2Ready = simulateP2Checkbox.checked; // Auto-ready bot when enabled
     if (botDifficultyRow) botDifficultyRow.classList.toggle('hidden', !state.simulateP2);
     saveLobbyState();
     renderLobby();
@@ -2122,628 +2178,67 @@
   cleanupExpiredRooms();
   roomCleanupInterval = setInterval(cleanupExpiredRooms, 60000); // Every minute
 
-  // Initialize cheat panel
-  const cheatPanel = $('cheat-panel');
-  const btnCheatPanel = $('btn-cheat-panel');
-  const btnCloseCheat = $('btn-close-cheat');
-  if (cheatPanel && btnCheatPanel) {
-    btnCheatPanel.addEventListener('click', () => {
-      cheatPanel.classList.toggle('hidden');
-    });
-    if (btnCloseCheat) {
-      btnCloseCheat.addEventListener('click', () => {
-        cheatPanel.classList.add('hidden');
-      });
-    }
-    if (cheatPanel.querySelector('.cheat-backdrop')) {
-      cheatPanel.querySelector('.cheat-backdrop').addEventListener('click', () => {
-        cheatPanel.classList.add('hidden');
-      });
-    }
-
-    // Keyboard shortcut
-    document.addEventListener('keydown', (e) => {
-      if (e.ctrlKey && e.shiftKey && e.key === 'C') {
-        e.preventDefault();
-        cheatPanel.classList.toggle('hidden');
-      }
-    });
-
-    // Collapsible sections
-    const sectionTitles = cheatPanel.querySelectorAll('.cheat-section-title');
-    sectionTitles.forEach(title => {
-      title.addEventListener('click', () => {
-        const section = title.closest('.cheat-section');
-        if (section) section.classList.toggle('collapsed');
-      });
-    });
-
-    // Stat manipulation
-    const cheatXPAmount = $('cheat-xp-amount');
-    const cheatAddXP = $('cheat-add-xp');
-    const cheatResetXP = $('cheat-reset-xp');
-    const cheatSetLevel = $('cheat-set-level');
-    const cheatApplyLevel = $('cheat-apply-level');
-    const cheatLevelUp = $('cheat-level-up');
-    const cheatLevelDown = $('cheat-level-down');
-    const cheatAddWins = $('cheat-add-wins');
-    const cheatApplyWins = $('cheat-apply-wins');
-    const cheatAddLosses = $('cheat-add-losses');
-    const cheatApplyLosses = $('cheat-apply-losses');
-    const cheatSetRating = $('cheat-set-rating');
-    const cheatApplyRating = $('cheat-apply-rating');
-    const cheatRatingPlus = $('cheat-rating-plus');
-    const cheatRatingMinus = $('cheat-rating-minus');
-    const cheatResetStats = $('cheat-reset-stats');
-
-    if (cheatAddXP && cheatXPAmount) {
-      cheatAddXP.addEventListener('click', () => {
-        const amount = parseInt(cheatXPAmount.value) || 0;
-        if (amount > 0) {
-          try {
-            const raw = localStorage.getItem(STORAGE_STATS);
-            const stats = raw ? JSON.parse(raw) : { level: 1, xp: 0, xpToNext: 100 };
-            stats.xp = (stats.xp || 0) + amount;
-            while (stats.xp >= stats.xpToNext) {
-              stats.xp -= stats.xpToNext;
-              stats.level = (stats.level || 1) + 1;
-              stats.xpToNext = Math.round((stats.xpToNext || 100) * 1.15);
-            }
-            localStorage.setItem(STORAGE_STATS, JSON.stringify(stats));
-            loadStats();
-            updatePlayerPanel();
-            setStatus(`Added ${amount} XP`, 'success');
-          } catch (e) {
-            setStatus('Failed to add XP', 'error');
-          }
-        }
-      });
-    }
-
-    if (cheatResetXP) {
-      cheatResetXP.addEventListener('click', () => {
-        try {
-          const raw = localStorage.getItem(STORAGE_STATS);
-          const stats = raw ? JSON.parse(raw) : { level: 1, xp: 0, xpToNext: 100 };
-          stats.xp = 0;
-          localStorage.setItem(STORAGE_STATS, JSON.stringify(stats));
-          loadStats();
-          updatePlayerPanel();
-          setStatus('XP reset to 0', 'info');
-        } catch (e) {
-          setStatus('Failed to reset XP', 'error');
-        }
-      });
-    }
-
-    if (cheatApplyLevel && cheatSetLevel) {
-      cheatApplyLevel.addEventListener('click', () => {
-        const level = parseInt(cheatSetLevel.value) || 1;
-        if (level >= 1) {
-          try {
-            const raw = localStorage.getItem(STORAGE_STATS);
-            const stats = raw ? JSON.parse(raw) : { level: 1, xp: 0, xpToNext: 100 };
-            stats.level = level;
-            stats.xp = 0;
-            stats.xpToNext = 100;
-            for (let i = 1; i < level; i++) {
-              stats.xpToNext = Math.round(stats.xpToNext * 1.15);
-            }
-            localStorage.setItem(STORAGE_STATS, JSON.stringify(stats));
-            loadStats();
-            updatePlayerPanel();
-            setStatus(`Level set to ${level}`, 'success');
-          } catch (e) {
-            setStatus('Failed to set level', 'error');
-          }
-        }
-      });
-    }
-
-    if (cheatLevelUp) {
-      cheatLevelUp.addEventListener('click', () => {
-        try {
-          const raw = localStorage.getItem(STORAGE_STATS);
-          const stats = raw ? JSON.parse(raw) : { level: 1, xp: 0, xpToNext: 100 };
-          stats.level = (stats.level || 1) + 1;
-          stats.xp = 0;
-          stats.xpToNext = Math.round((stats.xpToNext || 100) * 1.15);
-          localStorage.setItem(STORAGE_STATS, JSON.stringify(stats));
-          loadStats();
-          updatePlayerPanel();
-          setStatus(`Level up to ${stats.level}`, 'success');
-        } catch (e) {
-          setStatus('Failed to level up', 'error');
-        }
-      });
-    }
-
-    if (cheatLevelDown) {
-      cheatLevelDown.addEventListener('click', () => {
-        try {
-          const raw = localStorage.getItem(STORAGE_STATS);
-          const stats = raw ? JSON.parse(raw) : { level: 1, xp: 0, xpToNext: 100 };
-          if (stats.level > 1) {
-            stats.level = stats.level - 1;
-            stats.xp = 0;
-            stats.xpToNext = 100;
-            for (let i = 1; i < stats.level; i++) {
-              stats.xpToNext = Math.round(stats.xpToNext * 1.15);
-            }
-            localStorage.setItem(STORAGE_STATS, JSON.stringify(stats));
-            loadStats();
-            updatePlayerPanel();
-            setStatus(`Level down to ${stats.level}`, 'info');
-          }
-        } catch (e) {
-          setStatus('Failed to level down', 'error');
-        }
-      });
-    }
-
-    if (cheatApplyWins && cheatAddWins) {
-      cheatApplyWins.addEventListener('click', () => {
-        const amount = parseInt(cheatAddWins.value) || 0;
-        if (amount > 0) {
-          try {
-            const raw = localStorage.getItem(STORAGE_STATS);
-            const stats = raw ? JSON.parse(raw) : { wins: 0 };
-            stats.wins = (stats.wins || 0) + amount;
-            localStorage.setItem(STORAGE_STATS, JSON.stringify(stats));
-            loadStats();
-            updatePlayerPanel();
-            setStatus(`Added ${amount} win(s)`, 'success');
-          } catch (e) {
-            setStatus('Failed to add wins', 'error');
-          }
-        }
-      });
-    }
-
-    if (cheatApplyLosses && cheatAddLosses) {
-      cheatApplyLosses.addEventListener('click', () => {
-        const amount = parseInt(cheatAddLosses.value) || 0;
-        if (amount > 0) {
-          try {
-            const raw = localStorage.getItem(STORAGE_STATS);
-            const stats = raw ? JSON.parse(raw) : { losses: 0 };
-            stats.losses = (stats.losses || 0) + amount;
-            localStorage.setItem(STORAGE_STATS, JSON.stringify(stats));
-            loadStats();
-            updatePlayerPanel();
-            setStatus(`Added ${amount} loss(es)`, 'info');
-          } catch (e) {
-            setStatus('Failed to add losses', 'error');
-          }
-        }
-      });
-    }
-
-    if (cheatApplyRating && cheatSetRating) {
-      cheatApplyRating.addEventListener('click', () => {
-        const rating = parseInt(cheatSetRating.value) || 1000;
-        try {
-          const raw = localStorage.getItem(STORAGE_STATS);
-          const stats = raw ? JSON.parse(raw) : { rating: 1000 };
-          stats.rating = rating;
-          localStorage.setItem(STORAGE_STATS, JSON.stringify(stats));
-          loadStats();
-          updatePlayerPanel();
-          setStatus(`Rating set to ${rating}`, 'success');
-        } catch (e) {
-          setStatus('Failed to set rating', 'error');
-        }
-      });
-    }
-
-    if (cheatRatingPlus) {
-      cheatRatingPlus.addEventListener('click', () => {
-        try {
-          const raw = localStorage.getItem(STORAGE_STATS);
-          const stats = raw ? JSON.parse(raw) : { rating: 1000 };
-          stats.rating = (stats.rating || 1000) + 50;
-          localStorage.setItem(STORAGE_STATS, JSON.stringify(stats));
-          loadStats();
-          updatePlayerPanel();
-          setStatus(`Rating +50 (now ${stats.rating})`, 'success');
-        } catch (e) {
-          setStatus('Failed to update rating', 'error');
-        }
-      });
-    }
-
-    if (cheatRatingMinus) {
-      cheatRatingMinus.addEventListener('click', () => {
-        try {
-          const raw = localStorage.getItem(STORAGE_STATS);
-          const stats = raw ? JSON.parse(raw) : { rating: 1000 };
-          stats.rating = Math.max(0, (stats.rating || 1000) - 50);
-          localStorage.setItem(STORAGE_STATS, JSON.stringify(stats));
-          loadStats();
-          updatePlayerPanel();
-          setStatus(`Rating -50 (now ${stats.rating})`, 'info');
-        } catch (e) {
-          setStatus('Failed to update rating', 'error');
-        }
-      });
-    }
-
-    if (cheatResetStats) {
-      cheatResetStats.addEventListener('click', () => {
-        if (confirm('Are you sure you want to reset ALL stats? This cannot be undone.')) {
-          try {
-            localStorage.setItem(STORAGE_STATS, JSON.stringify({
-              level: 1, xp: 0, xpToNext: 100, wins: 0, losses: 0, draws: 0, rating: 1000, lastPlayed: null, winStreak: 0, bestWinStreak: 0
-            }));
-            loadStats();
-            updatePlayerPanel();
-            setStatus('All stats reset', 'success');
-          } catch (e) {
-            setStatus('Failed to reset stats', 'error');
-          }
-        }
-      });
-    }
-  }
-
   // ══════════════════════════════════════════════════════════════
-  // ── Profile Sync (save/load stats via server code) ──
+  // ── Expose App namespace for modular scripts ──
   // ══════════════════════════════════════════════════════════════
-  {
-    const profileCodeInput = $('profile-code-input');
-    const profileStatusEl = $('profile-status');
-    const btnProfileCreate = $('btn-profile-create');
-    const btnProfileSave = $('btn-profile-save');
-    const btnProfileLoad = $('btn-profile-load');
+  const App = {};
+  window.App = App;
 
-    // Load saved profile code from localStorage
-    const savedCode = localStorage.getItem(STORAGE_PROFILE_CODE) || '';
-    if (profileCodeInput && savedCode) {
-      profileCodeInput.value = savedCode;
-    }
+  // State & constants
+  App.state = state;
+  App.STORAGE_STATS = STORAGE_STATS;
+  App.STORAGE_PROFILE_CODE = STORAGE_PROFILE_CODE;
+  App.STORAGE_LAST_RULES = STORAGE_LAST_RULES;
+  App.DEFAULTS = DEFAULTS;
+  App.RULES_CLAMP = RULES_CLAMP;
+  App.tabId = tabId;
 
-    function showProfileStatus(msg, type) {
-      if (!profileStatusEl) return;
-      profileStatusEl.textContent = msg;
-      profileStatusEl.className = 'profile-status ' + type; // success | error | info
-      profileStatusEl.classList.remove('hidden');
-      clearTimeout(profileStatusEl._timer);
-      profileStatusEl._timer = setTimeout(() => {
-        profileStatusEl.classList.add('hidden');
-      }, 5000);
-    }
+  // Mutable primitive access via getter/setter
+  Object.defineProperty(App, 'onlineMode', {
+    get() { return onlineMode; },
+    set(v) { onlineMode = v; },
+  });
+  Object.defineProperty(App, 'serverLanUrl', {
+    get() { return serverLanUrl; },
+    set(v) { serverLanUrl = v; },
+  });
 
-    /** Gather current profile data from localStorage / state. */
-    function gatherProfileData() {
-      const name = (playerNameInput && playerNameInput.value.trim()) || loadName();
-      const matchHistory = JSON.parse(localStorage.getItem('mmtp-match-history') || '[]');
-      return {
-        name,
-        stats: { ...state.stats },
-        matchHistory: matchHistory.slice(-20),
-      };
-    }
+  // DOM elements external modules may need
+  App.dom = {
+    playerNameInput,
+    joinRoomCode,
+    serverUrlInfo,
+    serverUrlValue,
+    tunnelPasswordHint,
+    shareSection,
+    inviteLinkPreview,
+    qrCodeEl,
+  };
 
-    /** Apply loaded profile data into localStorage + state. */
-    function applyProfileData(data) {
-      if (data.name) {
-        saveName(data.name);
-        if (playerNameInput) playerNameInput.value = data.name;
-      }
-      if (data.stats) {
-        state.stats = {
-          level: data.stats.level ?? 1,
-          xp: data.stats.xp ?? 0,
-          xpToNext: data.stats.xpToNext ?? 100,
-          wins: data.stats.wins ?? 0,
-          losses: data.stats.losses ?? 0,
-          draws: data.stats.draws ?? 0,
-          rating: data.stats.rating ?? 1000,
-          lastPlayed: data.stats.lastPlayed ?? null,
-          winStreak: data.stats.winStreak ?? 0,
-          bestWinStreak: data.stats.bestWinStreak ?? 0,
-        };
-        saveStats();
-      }
-      if (Array.isArray(data.matchHistory)) {
-        try {
-          localStorage.setItem('mmtp-match-history', JSON.stringify(data.matchHistory.slice(-20)));
-        } catch (e) { /* ignore */ }
-      }
-      updatePlayerPanel();
-    }
+  // Functions
+  App.$ = $;
+  App.setStatus = setStatus;
+  App.loadStats = loadStats;
+  App.saveStats = saveStats;
+  App.updatePlayerPanel = updatePlayerPanel;
+  App.loadName = loadName;
+  App.saveName = saveName;
+  App.clampRules = clampRules;
+  App.applyRulesToInputs = applyRulesToInputs;
+  App.readRulesFromInputs = readRulesFromInputs;
+  App.onRulesChange = onRulesChange;
+  App.renderLobby = renderLobby;
+  App.updateConnectionStatus = updateConnectionStatus;
+  App.onJoin = onJoin;
 
-    // ── Create New Profile ──
-    if (btnProfileCreate) {
-      btnProfileCreate.addEventListener('click', async () => {
-        try {
-          btnProfileCreate.disabled = true;
-          btnProfileCreate.textContent = '…';
-          const data = gatherProfileData();
-          const res = await fetch('/api/profile/create', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(data),
-          });
-          const result = await res.json();
-          if (result.ok && result.code) {
-            localStorage.setItem(STORAGE_PROFILE_CODE, result.code);
-            if (profileCodeInput) profileCodeInput.value = result.code;
-            showProfileStatus(`Profile created! Your code: ${result.code} — remember it!`, 'success');
-            if (window.SFX) SFX.play('score');
-          } else {
-            showProfileStatus(result.error || 'Failed to create profile', 'error');
-          }
-        } catch (e) {
-          showProfileStatus('Server unreachable — try again later', 'error');
-        } finally {
-          btnProfileCreate.disabled = false;
-          btnProfileCreate.textContent = 'New';
-        }
-      });
-    }
+  // Stubs — populated by external modules (app-cheat.js, app-online.js)
+  App.getInviteUrl = null;
+  App.updateInviteLinkPreview = null;
+  App.fetchServerInfo = null;
+  App.handleAutoJoin = null;
+  App.initOnline = null;
 
-    // ── Save Profile ──
-    if (btnProfileSave) {
-      btnProfileSave.addEventListener('click', async () => {
-        const code = (profileCodeInput?.value || '').toUpperCase().trim();
-        if (!code || code.length !== 6) {
-          showProfileStatus('Enter your 6-character profile code first, or click "New"', 'error');
-          if (profileCodeInput) profileCodeInput.focus();
-          return;
-        }
-        try {
-          btnProfileSave.disabled = true;
-          btnProfileSave.textContent = '…';
-          const data = gatherProfileData();
-          const res = await fetch('/api/profile/save', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ code, ...data }),
-          });
-          const result = await res.json();
-          if (result.ok) {
-            localStorage.setItem(STORAGE_PROFILE_CODE, code);
-            showProfileStatus('Profile saved to server ✓', 'success');
-            if (window.SFX) SFX.play('click');
-          } else {
-            showProfileStatus(result.error || 'Failed to save', 'error');
-          }
-        } catch (e) {
-          showProfileStatus('Server unreachable — try again later', 'error');
-        } finally {
-          btnProfileSave.disabled = false;
-          btnProfileSave.textContent = 'Save';
-        }
-      });
-    }
+  // ── Cheat panel, profile sync, server info, invite link, online init ──
+  // These are now in separate modules: app-cheat.js, app-online.js
 
-    // ── Load Profile ──
-    if (btnProfileLoad) {
-      btnProfileLoad.addEventListener('click', async () => {
-        const code = (profileCodeInput?.value || '').toUpperCase().trim();
-        if (!code || code.length !== 6) {
-          showProfileStatus('Enter your 6-character profile code first', 'error');
-          if (profileCodeInput) profileCodeInput.focus();
-          return;
-        }
-        try {
-          btnProfileLoad.disabled = true;
-          btnProfileLoad.textContent = '…';
-          const res = await fetch(`/api/profile/load/${encodeURIComponent(code)}`);
-          const result = await res.json();
-          if (result.ok && result.data) {
-            applyProfileData(result.data);
-            localStorage.setItem(STORAGE_PROFILE_CODE, code);
-            if (profileCodeInput) profileCodeInput.value = code;
-            showProfileStatus(`Profile loaded! Welcome back, ${result.data.name || 'Player'}`, 'success');
-            if (window.SFX) SFX.play('score');
-          } else {
-            showProfileStatus(result.error || 'Profile not found', 'error');
-          }
-        } catch (e) {
-          showProfileStatus('Server unreachable — try again later', 'error');
-        } finally {
-          btnProfileLoad.disabled = false;
-          btnProfileLoad.textContent = 'Load';
-        }
-      });
-    }
-
-    // Auto-uppercase the code input
-    if (profileCodeInput) {
-      profileCodeInput.addEventListener('input', () => {
-        profileCodeInput.value = profileCodeInput.value.toUpperCase().replace(/[^A-Z0-9]/g, '');
-      });
-    }
-  }
-
-  // ══════════════════════════════════════════════════════════════
-  // ── Server Info / Invite Link helpers ──
-  // ══════════════════════════════════════════════════════════════
-
-  /** Fetch LAN IPs from the server and display in UI. */
-  async function fetchServerInfo() {
-    try {
-      const res = await fetch('/api/server-info');
-      if (!res.ok) return;
-      const info = await res.json();
-      serverLanUrl = info.url || window.location.origin;
-      console.log('[Lobby] Server URL:', serverLanUrl);
-      if (info.tunnelUrl) {
-        console.log('[Lobby] Public tunnel:', info.tunnelUrl);
-      }
-
-      // Show the URL bar in the lobby
-      if (serverUrlInfo) serverUrlInfo.classList.remove('hidden');
-      if (serverUrlValue) {
-        serverUrlValue.textContent = serverLanUrl;
-      }
-
-      // Update the label text based on whether it's a tunnel or LAN
-      const label = serverUrlInfo?.querySelector('.server-url-label');
-      if (label) {
-        if (info.tunnelUrl) {
-          label.textContent = '🌐 Public URL (anyone can join!):';
-        } else {
-          label.textContent = '🌐 Share this URL (same WiFi):';
-        }
-      }
-
-      // Show tunnel password hint if present (localtunnel requires first-time visitors to enter it)
-      if (tunnelPasswordHint) {
-        if (info.tunnelPassword && info.tunnelUrl) {
-          const strongEl = tunnelPasswordHint.querySelector('strong');
-          if (strongEl) strongEl.textContent = info.tunnelPassword;
-          tunnelPasswordHint.classList.remove('hidden');
-        } else {
-          tunnelPasswordHint.classList.add('hidden');
-        }
-      }
-    } catch (e) {
-      console.warn('[Lobby] Could not fetch server info:', e);
-      serverLanUrl = window.location.origin;
-    }
-  }
-
-  /** Build an invite URL for the current room. */
-  function getInviteUrl() {
-    const base = serverLanUrl || window.location.origin;
-    if (!state.roomCode) return base;
-    return `${base}/?join=${state.roomCode}`;
-  }
-
-  /** Update the share section (invite link + QR code) under the room code. */
-  function updateInviteLinkPreview() {
-    const hasRoom = state.isHost && state.roomCode && (serverLanUrl || onlineMode);
-    if (shareSection) {
-      if (hasRoom) {
-        const url = getInviteUrl();
-        if (inviteLinkPreview) inviteLinkPreview.textContent = url;
-        // Generate QR code
-        if (qrCodeEl && window.QR) {
-          try {
-            qrCodeEl.innerHTML = QR.toSVG(url, { size: 200, margin: 1 });
-          } catch (e) {
-            console.warn('[QR] Failed to generate:', e);
-            qrCodeEl.innerHTML = '';
-          }
-        }
-        shareSection.classList.remove('hidden');
-      } else {
-        shareSection.classList.add('hidden');
-      }
-    }
-  }
-
-  /** Check URL for ?join=XXXX and auto-join. */
-  function handleAutoJoin() {
-    const params = new URLSearchParams(window.location.search);
-    const joinCode = params.get('join');
-    if (!joinCode || !/^\d{4}$/.test(joinCode)) return;
-
-    // Clean the URL (remove ?join=...) without reloading
-    const cleanUrl = window.location.pathname;
-    window.history.replaceState({}, '', cleanUrl);
-
-    console.log('[Lobby] Auto-joining room from invite link:', joinCode);
-
-    // Pre-fill the room code
-    if (joinRoomCode) joinRoomCode.value = joinCode;
-
-    // Wait a tick for the UI to settle, then trigger join
-    setTimeout(() => {
-      // Make sure we have a name first
-      const name = (playerNameInput && playerNameInput.value.trim()) || loadName();
-      if (!name) {
-        setStatus('Enter your name first, then click Join!', 'warning');
-        if (playerNameInput) playerNameInput.focus();
-        return;
-      }
-      onJoin();
-    }, 300);
-  }
-
-  // ══════════════════════════════════════════════════════════════
-  // ── WebSocket Connection + Event Listeners ──
-  // ══════════════════════════════════════════════════════════════
-  function initOnline() {
-    if (!window.MMtpNet) {
-      console.log('[Lobby] MMtpNet not available — local mode only');
-      updateConnectionStatus(false);
-      return;
-    }
-
-    MMtpNet.connect().then((ok) => {
-      onlineMode = ok;
-      updateConnectionStatus(ok);
-      if (ok) {
-        console.log('[Lobby] WebSocket connected — online mode');
-        // Fetch LAN IP info so we can show shareable URLs
-        fetchServerInfo();
-        // Auto-join from URL ?join=XXXX
-        handleAutoJoin();
-      } else {
-        console.log('[Lobby] Server unreachable — local mode (bot only)');
-      }
-    });
-
-    // ── Server → UI event handlers ──
-    MMtpNet.on('lobbyUpdate', (roomState) => {
-      if (!state.isOnlineRoom) return;
-      // Update local state from server
-      state.players = (roomState.players || []).map(p => ({
-        tabId: p.isHost ? (state.isHost ? tabId : 'remote-host') : (!state.isHost ? tabId : 'remote-' + p.playerId),
-        name: p.name,
-        ready: p.ready,
-        isHost: p.isHost,
-        playerId: p.playerId,
-        connected: p.connected,
-      }));
-      state.rules = clampRules(roomState.rules || DEFAULTS);
-      state.roomCode = roomState.code;
-      applyRulesToInputs();
-      renderLobby();
-    });
-
-    MMtpNet.on('gameStarting', (data) => {
-      if (!state.isOnlineRoom) return;
-      state.stats.lastPlayed = Date.now();
-      saveStats();
-      // Save rules for restoration
-      try {
-        localStorage.setItem(STORAGE_LAST_RULES, JSON.stringify(state.rules));
-      } catch (e) { /* ignore */ }
-      // Navigate to gameplay with online flag
-      const rulesEncoded = encodeURIComponent(JSON.stringify(state.rules));
-      const role = state.isHost ? 'host' : 'client';
-      const roomCode = state.roomCode || data.roomCode || '';
-      window.location.href = `gameplay.html?rules=${rulesEncoded}&role=${role}&room=${roomCode}&online=1`;
-    });
-
-    MMtpNet.on('playerLeft', (data) => {
-      if (!state.isOnlineRoom) return;
-      setStatus(`${data.name || 'Player'} left the room`, 'warning');
-    });
-
-    MMtpNet.on('playerDisconnected', (data) => {
-      if (!state.isOnlineRoom) return;
-      setStatus('A player disconnected — waiting for reconnect…', 'warning');
-    });
-
-    MMtpNet.on('disconnected', () => {
-      updateConnectionStatus(false);
-      if (onlineMode) {
-        setStatus('Disconnected from server — reconnecting…', 'warning');
-      }
-    });
-
-    MMtpNet.on('connected', () => {
-      onlineMode = true;
-      updateConnectionStatus(true);
-    });
-  }
-
-  // Initialize online connection attempt
-  initOnline();
 })();

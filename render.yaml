@@ -13,7 +13,7 @@ services:
     runtime: node
     region: singapore  # Change to your preferred region (oregon, frankfurt, singapore, ohio)
     plan: free
-    buildCommand: cd webapp-lobby/server && npm ci --omit=dev
+    buildCommand: cd webapp-lobby/server && npm install --omit=dev
     startCommand: cd webapp-lobby/server && node index.js
     envVars:
       - key: PORT
