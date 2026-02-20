@@ -86,11 +86,17 @@ class GameEngine {
    * Handle player action. Returns { ok, error? }.
    */
   handleAction(socketId, action, data = {}) {
-    if (this.gameOver) return { ok: false, error: 'Game is over' };
-
     const player = this.room.getPlayer(socketId);
     if (!player) return { ok: false, error: 'Not in this room' };
     const pid = player.playerId;
+
+    // requestState is allowed even after game over (for reconnection)
+    if (action === 'requestState') {
+      this.sendTo(socketId, 'gameState', this._buildStateFor(pid));
+      return { ok: true };
+    }
+
+    if (this.gameOver) return { ok: false, error: 'Game is over' };
 
     switch (action) {
       case 'draw': return this._handleDraw(pid);

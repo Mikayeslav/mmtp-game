@@ -779,8 +779,8 @@
     cardEl.dataset.index = index;
     cardEl.draggable = playerId === gameState.activePlayer && !gameState.gameOver;
     
-    if (playerId === 2) {
-      // Player 2 cards face down
+    if (card.faceDown || playerId === 2) {
+      // Face-down: opponent's cards (playerId 2) or explicitly marked faceDown
       cardEl.classList.add('face-down');
     } else {
       // Player 1 cards face up

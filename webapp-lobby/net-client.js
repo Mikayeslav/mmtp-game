@@ -30,10 +30,22 @@
 
   // Event listeners (simple pub/sub)
   const listeners = {};
+  // Buffer for events that arrive before any handler is registered.
+  // Critical for gameState which the server sends during reconnection —
+  // it can arrive before gameplay-online.js registers its handler.
+  const eventBuffer = {};
 
   function emit(event, ...args) {
     const fns = listeners[event];
-    if (fns) fns.forEach(fn => { try { fn(...args); } catch (e) { console.error(`[MMtpNet] listener error on ${event}:`, e); } });
+    if (fns && fns.length > 0) {
+      fns.forEach(fn => { try { fn(...args); } catch (e) { console.error(`[MMtpNet] listener error on ${event}:`, e); } });
+    } else {
+      // No handler yet — buffer this event for replay when a handler is registered
+      if (!eventBuffer[event]) eventBuffer[event] = [];
+      eventBuffer[event].push(args);
+      // Keep buffer small (only last event matters for most cases)
+      if (eventBuffer[event].length > 5) eventBuffer[event].shift();
+    }
   }
 
   /**
@@ -269,6 +281,13 @@
   function on(event, fn) {
     if (!listeners[event]) listeners[event] = [];
     listeners[event].push(fn);
+    // Replay any buffered events that arrived before this handler was registered
+    if (eventBuffer[event] && eventBuffer[event].length > 0) {
+      console.log(`[MMtpNet] Replaying ${eventBuffer[event].length} buffered ${event} event(s)`);
+      const buffered = eventBuffer[event];
+      delete eventBuffer[event];
+      buffered.forEach(args => { try { fn(...args); } catch (e) { console.error(`[MMtpNet] replay error on ${event}:`, e); } });
+    }
   }
 
   /**

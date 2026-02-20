@@ -112,6 +112,10 @@ class Room {
       handLimit: rules.handLimit || 12,
       allowBots: rules.allowBots || false,
       botDifficulty: rules.botDifficulty || 'medium',
+      // QoL: operator & special card selection
+      allowedOperators: rules.allowedOperators || undefined,
+      allowedSpecials: rules.allowedSpecials || undefined,
+      specialCards: rules.specialCards !== undefined ? rules.specialCards : true,
     };
 
     // Session tokens for reconnection (must init before addPlayer)
