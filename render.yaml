@@ -1,0 +1,24 @@
+# Render Blueprint — MMtp Multiplayer Game Server
+# Deploy: Connect your GitHub repo → Render auto-detects this file
+# Free tier: 750 hours/month, auto-sleep after 15min inactivity
+#
+# Steps:
+#   1. Push this repo to GitHub
+#   2. Go to https://dashboard.render.com → New → Blueprint
+#   3. Connect the repo → Render reads this file and deploys automatically
+
+services:
+  - type: web
+    name: mmtp-server
+    runtime: node
+    region: singapore  # Change to your preferred region (oregon, frankfurt, singapore, ohio)
+    plan: free
+    buildCommand: cd webapp-lobby/server && npm ci --omit=dev
+    startCommand: cd webapp-lobby/server && node index.js
+    envVars:
+      - key: PORT
+        value: 10000
+      - key: NODE_ENV
+        value: production
+    autoDeploy: true
+    healthCheckPath: /api/status
