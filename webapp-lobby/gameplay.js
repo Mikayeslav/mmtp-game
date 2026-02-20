@@ -13,7 +13,8 @@
   const GAME_STATE_KEY = 'mmtp-game-state';
   const ROOM_KEY = 'mmtp-lobby-';
   let isHost = false;
-  let myPlayerId = 1; // 1 = P1, 2 = P2
+  let myPlayerId = 1; // 1 = P1, 2 = P2  (always 1 for rendering in online mode)
+  let serverPlayerId = 1; // Real server-side player ID (1 or 2, used for perspective remapping)
   let roomCode = null;
   let syncInterval = null;
   let lastSyncVersion = 0;
@@ -3314,7 +3315,11 @@
   }
   
   // Initialize game
-  if (isHost) {
+  if (onlineParam === '1') {
+    // Online mode: server manages game state. Don't create local deck/hands.
+    // gameplay-online.js will apply authoritative state once connected.
+    console.log('[Gameplay] Online mode — waiting for server state');
+  } else if (isHost) {
     // Host: create fresh game state
     gameState.deck = createDeck();
     dealInitialHands();
@@ -3413,6 +3418,7 @@
   Object.defineProperties(GP, {
     isHost:              { get() { return isHost; },              set(v) { isHost = v; } },
     myPlayerId:          { get() { return myPlayerId; },          set(v) { myPlayerId = v; } },
+    serverPlayerId:      { get() { return serverPlayerId; },      set(v) { serverPlayerId = v; } },
     onlineGame:          { get() { return onlineGame; },          set(v) { onlineGame = v; } },
     roomCode:            { get() { return roomCode; },            set(v) { roomCode = v; } },
     onlineParam:         { get() { return onlineParam; } },
