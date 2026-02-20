@@ -50,9 +50,12 @@ const server = http.createServer(app);
 // Production: cache static assets; Dev: no-cache for fresh JS/CSS
 if (IS_PRODUCTION) {
   app.use((req, res, next) => {
-    // Cache static assets for 1 hour in production
-    if (req.path.match(/\.(js|css|png|jpg|svg|ico|woff2?)$/)) {
+    if (req.path.match(/\.(png|jpg|svg|ico|woff2?)$/)) {
+      // Images & fonts: cache 1 hour (rarely change)
       res.set('Cache-Control', 'public, max-age=3600');
+    } else if (req.path.match(/\.(js|css)$/)) {
+      // JS & CSS: always revalidate via ETag (no stale content after deploys)
+      res.set('Cache-Control', 'no-cache');
     }
     next();
   });
