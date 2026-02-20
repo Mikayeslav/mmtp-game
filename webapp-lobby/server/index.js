@@ -1,0 +1,494 @@
+/**
+ * MMtp — Multiplayer Server
+ * Express static file server + Socket.io WebSocket for real-time multiplayer.
+ *
+ * Usage:
+ *   node server/index.js              → LAN only (same WiFi)
+ *   node server/index.js --public     → creates a public tunnel (any network)
+ *
+ * Env:
+ *   PORT       → server port (default 3000)
+ *   NODE_ENV   → 'production' for cloud deployment
+ *
+ * Serves ../webapp-lobby on http://localhost:3000
+ */
+
+const http = require('http');
+const os = require('os');
+const path = require('path');
+const express = require('express');
+const { Server } = require('socket.io');
+const { RoomManager } = require('./rooms');
+const { GameEngine } = require('./game-engine');
+const profiles = require('./profiles');
+
+const IS_PRODUCTION = process.env.NODE_ENV === 'production';
+
+/** Return the first non-internal IPv4 address (LAN IP). */
+function getLanIPs() {
+  const results = [];
+  const ifaces = os.networkInterfaces();
+  for (const name of Object.keys(ifaces)) {
+    for (const iface of ifaces[name]) {
+      if (iface.family === 'IPv4' && !iface.internal) {
+        results.push(iface.address);
+      }
+    }
+  }
+  return results;
+}
+
+const PORT = parseInt(process.env.PORT, 10) || 3000;
+const WANT_TUNNEL = !IS_PRODUCTION && (process.argv.includes('--public') || process.argv.includes('--tunnel'));
+let tunnelUrl = null;   // Set when tunnel is active
+let tunnelPassword = null; // localtunnel requires visitors to enter the host's public IP once
+
+// ── Express ──
+const app = express();
+const server = http.createServer(app);
+
+// Production: cache static assets; Dev: no-cache for fresh JS/CSS
+if (IS_PRODUCTION) {
+  app.use((req, res, next) => {
+    // Cache static assets for 1 hour in production
+    if (req.path.match(/\.(js|css|png|jpg|svg|ico|woff2?)$/)) {
+      res.set('Cache-Control', 'public, max-age=3600');
+    }
+    next();
+  });
+} else {
+  app.use((req, res, next) => {
+    res.set('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+    res.set('Pragma', 'no-cache');
+    res.set('Expires', '0');
+    next();
+  });
+}
+
+// Trust proxy (for Render/Heroku behind reverse proxy)
+if (IS_PRODUCTION) {
+  app.set('trust proxy', 1);
+}
+
+// Serve the webapp-lobby static files
+app.use(express.static(path.join(__dirname, '..'), {
+  etag: IS_PRODUCTION,
+  lastModified: IS_PRODUCTION,
+}));
+
+// Health / info endpoint
+app.get('/api/status', (req, res) => {
+  res.json({
+    ok: true,
+    rooms: roomManager.listRooms(),
+    uptime: process.uptime(),
+  });
+});
+
+// Server info endpoint — returns LAN IPs + tunnel URL so clients can build invite links
+app.get('/api/server-info', (req, res) => {
+  const addresses = getLanIPs();
+  const lanUrl = addresses.length ? `http://${addresses[0]}:${PORT}` : `http://localhost:${PORT}`;
+  res.json({
+    port: PORT,
+    addresses,
+    // Primary URL for sharing — prefer tunnel if available
+    url: tunnelUrl || lanUrl,
+    lanUrl,
+    tunnelUrl: tunnelUrl || null,
+    tunnelPassword: tunnelPassword || null,
+  });
+});
+
+// ── Profile API ──
+app.use(express.json()); // Parse JSON request bodies
+
+// Create a new profile
+app.post('/api/profile/create', (req, res) => {
+  try {
+    const { code } = profiles.create(req.body);
+    res.json({ ok: true, code });
+  } catch (e) {
+    res.json({ ok: false, error: e.message });
+  }
+});
+
+// Save profile (update existing)
+app.post('/api/profile/save', (req, res) => {
+  const { code, ...data } = req.body;
+  const result = profiles.save(code, data);
+  res.json(result);
+});
+
+// Load profile
+app.get('/api/profile/load/:code', (req, res) => {
+  const result = profiles.load(req.params.code);
+  res.json(result);
+});
+
+// Check if profile exists
+app.get('/api/profile/exists/:code', (req, res) => {
+  res.json({ ok: true, exists: profiles.exists(req.params.code) });
+});
+
+// ── Socket.io ──
+const io = new Server(server, {
+  cors: {
+    origin: IS_PRODUCTION ? true : '*',   // In production, allow same-origin; dev: allow all
+    methods: ['GET', 'POST'],
+  },
+  pingTimeout: 10000,
+  pingInterval: 5000,
+  // Allow both transports for cloud platforms that may not support WS upgrade
+  transports: ['websocket', 'polling'],
+});
+
+const roomManager = new RoomManager();
+/** @type {Map<string, GameEngine>} roomCode -> GameEngine */
+const activeGames = new Map();
+
+// Cleanup stale rooms every 5 minutes
+setInterval(() => roomManager.cleanup(), 5 * 60 * 1000);
+
+// Reconnection grace period (30s)
+const RECONNECT_GRACE_MS = 30_000;
+
+// ── Helpers ──
+function broadcastToRoom(event, data, roomCode) {
+  io.to(`room:${roomCode}`).emit(event, data);
+}
+
+function sendToSocket(socketId, event, data) {
+  io.to(socketId).emit(event, data);
+}
+
+// ── Connection handler ──
+io.on('connection', (socket) => {
+  console.log(`[WS] Connected: ${socket.id}`);
+
+  // ─── Lobby: Create Room ───
+  socket.on('createRoom', ({ playerName, rules }, callback) => {
+    const cb = typeof callback === 'function' ? callback : () => {};
+    try {
+      // Leave any current room
+      leaveCurrentRoom(socket);
+
+      const room = roomManager.createRoom(socket.id, playerName, rules);
+      socket.join(`room:${room.code}`);
+      console.log(`[ROOM] Created room ${room.code} by "${playerName}" (${socket.id})`);
+
+      const me = room.getPlayer(socket.id);
+      cb({
+        ok: true,
+        roomCode: room.code,
+        sessionToken: me.sessionToken,
+        room: room.getPublicState(),
+      });
+    } catch (err) {
+      console.log(`[ROOM] Create failed: ${err.message} (${socket.id})`);
+      cb({ ok: false, error: err.message });
+    }
+  });
+
+  // ─── Lobby: Join Room ───
+  socket.on('joinRoom', ({ roomCode, playerName, sessionToken }, callback) => {
+    const cb = typeof callback === 'function' ? callback : () => {};
+    console.log(`[ROOM] Join attempt: code=${roomCode}, name="${playerName}", token=${sessionToken ? 'yes' : 'no'} (${socket.id})`);
+    console.log(`[ROOM] Active rooms: [${roomManager.listRooms().map(r => r.code).join(', ')}]`);
+    const room = roomManager.getRoom(roomCode);
+    if (!room) {
+      console.log(`[ROOM] Room ${roomCode} NOT FOUND`);
+      return cb({ ok: false, error: 'Room not found' });
+    }
+
+    // Reconnection attempt?
+    if (sessionToken) {
+      const player = room.reconnect(sessionToken, socket.id);
+      if (player) {
+        socket.join(`room:${room.code}`);
+        broadcastToRoom('lobbyUpdate', room.getPublicState(), room.code);
+
+        // If game is active, send current game state
+        const engine = activeGames.get(room.code);
+        if (engine && room.gameStarted) {
+          sendToSocket(socket.id, 'gameState', engine._buildStateFor(player.playerId));
+        }
+
+        return cb({
+          ok: true,
+          roomCode: room.code,
+          sessionToken: player.sessionToken,
+          room: room.getPublicState(),
+          reconnected: true,
+        });
+      }
+    }
+
+    // Normal join
+    if (room.isFull()) return cb({ ok: false, error: 'Room is full' });
+    if (room.gameStarted) return cb({ ok: false, error: 'Game already in progress' });
+
+    leaveCurrentRoom(socket);
+    const player = room.addPlayer(socket.id, playerName);
+    if (!player) return cb({ ok: false, error: 'Could not join room' });
+
+    socket.join(`room:${room.code}`);
+    broadcastToRoom('lobbyUpdate', room.getPublicState(), room.code);
+
+    cb({
+      ok: true,
+      roomCode: room.code,
+      sessionToken: player.sessionToken,
+      room: room.getPublicState(),
+    });
+  });
+
+  // ─── Lobby: Set Ready ───
+  socket.on('setReady', ({ ready }, callback) => {
+    const cb = typeof callback === 'function' ? callback : () => {};
+    const room = roomManager.findRoomBySocket(socket.id);
+    if (!room) return cb({ ok: false, error: 'Not in a room' });
+
+    const player = room.getPlayer(socket.id);
+    if (!player) return cb({ ok: false, error: 'Player not found' });
+
+    player.ready = !!ready;
+    broadcastToRoom('lobbyUpdate', room.getPublicState(), room.code);
+    cb({ ok: true });
+  });
+
+  // ─── Lobby: Update Rules (host only) ───
+  socket.on('updateRules', ({ rules }, callback) => {
+    const cb = typeof callback === 'function' ? callback : () => {};
+    const room = roomManager.findRoomBySocket(socket.id);
+    if (!room) return cb({ ok: false, error: 'Not in a room' });
+    if (!room.isHost(socket.id)) return cb({ ok: false, error: 'Only host can change rules' });
+    if (room.gameStarted) return cb({ ok: false, error: 'Game already started' });
+
+    room.setRules(rules);
+    broadcastToRoom('lobbyUpdate', room.getPublicState(), room.code);
+    cb({ ok: true });
+  });
+
+  // ─── Lobby: Start Game (host only) ───
+  socket.on('startGame', (_, callback) => {
+    const cb = typeof callback === 'function' ? callback : () => {};
+    const room = roomManager.findRoomBySocket(socket.id);
+    if (!room) return cb({ ok: false, error: 'Not in a room' });
+    if (!room.isHost(socket.id)) return cb({ ok: false, error: 'Only host can start' });
+    if (!room.allReady()) return cb({ ok: false, error: 'All players must be ready' });
+    if (room.gameStarted) return cb({ ok: false, error: 'Game already started' });
+
+    room.gameStarted = true;
+    const engine = new GameEngine(room, broadcastToRoom, sendToSocket);
+    activeGames.set(room.code, engine);
+    engine.start();
+
+    broadcastToRoom('gameStarting', { roomCode: room.code }, room.code);
+    cb({ ok: true });
+  });
+
+  // ─── Gameplay: Action ───
+  socket.on('gameAction', ({ action, data }, callback) => {
+    const cb = typeof callback === 'function' ? callback : () => {};
+    const room = roomManager.findRoomBySocket(socket.id);
+    if (!room) return cb({ ok: false, error: 'Not in a room' });
+
+    const engine = activeGames.get(room.code);
+    if (!engine) return cb({ ok: false, error: 'No active game' });
+
+    const result = engine.handleAction(socket.id, action, data || {});
+    cb(result);
+  });
+
+  // ─── Gameplay: Rematch ───
+  socket.on('rematch', (_, callback) => {
+    const cb = typeof callback === 'function' ? callback : () => {};
+    const room = roomManager.findRoomBySocket(socket.id);
+    if (!room) return cb({ ok: false, error: 'Not in a room' });
+
+    const engine = activeGames.get(room.code);
+    if (!engine) return cb({ ok: false, error: 'No active game' });
+    if (!engine.gameOver) return cb({ ok: false, error: 'Game not over yet' });
+
+    // Reset ready status
+    room.players.forEach(p => p.ready = false);
+    engine.rematch();
+
+    broadcastToRoom('rematch', { roomCode: room.code }, room.code);
+    cb({ ok: true });
+  });
+
+  // ─── Lobby: Leave Room ───
+  socket.on('leaveRoom', (_, callback) => {
+    const cb = typeof callback === 'function' ? callback : () => {};
+    leaveCurrentRoom(socket);
+    cb({ ok: true });
+  });
+
+  // ─── Chat ───
+  socket.on('chat', ({ message }) => {
+    const room = roomManager.findRoomBySocket(socket.id);
+    if (!room) return;
+    const player = room.getPlayer(socket.id);
+    if (!player) return;
+    broadcastToRoom('chat', {
+      playerId: player.playerId,
+      name: player.name,
+      message: String(message).slice(0, 200),
+      timestamp: Date.now(),
+    }, room.code);
+  });
+
+  // ─── Disconnect ───
+  socket.on('disconnect', (reason) => {
+    console.log(`[WS] Disconnected: ${socket.id} (${reason})`);
+    const room = roomManager.findRoomBySocket(socket.id);
+    if (!room) return;
+
+    // Mark as disconnected (grace period for reconnection)
+    room.markDisconnected(socket.id);
+    broadcastToRoom('lobbyUpdate', room.getPublicState(), room.code);
+    broadcastToRoom('playerDisconnected', {
+      playerId: room.getPlayer(socket.id)?.playerId,
+    }, room.code);
+
+    // After grace period, fully remove if still disconnected
+    setTimeout(() => {
+      const player = room.getPlayer(socket.id);
+      if (player && !player.connected) {
+        console.log(`[WS] Grace period expired for ${socket.id} in room ${room.code}`);
+        cleanupPlayerFromRoom(socket.id, room);
+      }
+    }, RECONNECT_GRACE_MS);
+  });
+});
+
+// ── Leave / cleanup helpers ──
+function leaveCurrentRoom(socket) {
+  const room = roomManager.findRoomBySocket(socket.id);
+  if (!room) return;
+  socket.leave(`room:${room.code}`);
+  cleanupPlayerFromRoom(socket.id, room);
+}
+
+function cleanupPlayerFromRoom(socketId, room) {
+  const removed = room.removePlayer(socketId);
+  if (!removed) return;
+
+  console.log(`[WS] "${removed.name}" left room ${room.code}`);
+
+  // If room is now empty, destroy it
+  if (room.players.length === 0) {
+    console.log(`[ROOM] Room ${room.code} is now empty — destroying`);
+    const engine = activeGames.get(room.code);
+    if (engine) { engine.destroy(); activeGames.delete(room.code); }
+    roomManager.removeRoom(room.code);
+    return;
+  }
+
+  // If the host left, promote next player
+  if (removed.isHost && room.players.length > 0) {
+    room.players[0].isHost = true;
+    room.hostSocketId = room.players[0].socketId;
+    console.log(`[WS] New host in room ${room.code}: "${room.players[0].name}"`);
+  }
+
+  // If game was active and a player left permanently, end the game
+  const engine = activeGames.get(room.code);
+  if (engine && room.gameStarted) {
+    const remaining = room.players[0];
+    engine._endGame(remaining.playerId);
+    room.gameStarted = false;
+    activeGames.delete(room.code);
+  }
+
+  broadcastToRoom('lobbyUpdate', room.getPublicState(), room.code);
+  broadcastToRoom('playerLeft', { playerId: removed.playerId, name: removed.name }, room.code);
+}
+
+// ── Start ──
+server.listen(PORT, '0.0.0.0', async () => {
+  const lanIPs = getLanIPs();
+  const mode = IS_PRODUCTION ? 'PRODUCTION' : 'DEVELOPMENT';
+  console.log(`\n  ╔══════════════════════════════════════════╗`);
+  console.log(`  ║  MMtp Server running on port ${String(PORT).padEnd(5)}        ║`);
+  console.log(`  ║  Mode:    ${mode.padEnd(31)}║`);
+  console.log(`  ║  Local:   http://localhost:${PORT}          ║`);
+  if (!IS_PRODUCTION && lanIPs.length > 0) {
+    lanIPs.forEach(ip => {
+      const url = `http://${ip}:${PORT}`;
+      const pad = ' '.repeat(Math.max(0, 30 - url.length));
+      console.log(`  ║  Network: ${url}${pad}║`);
+    });
+  }
+  console.log(`  ╚══════════════════════════════════════════╝\n`);
+
+  // ── Public tunnel (--public flag) with auto-retry ──
+  if (WANT_TUNNEL) {
+    const localtunnel = require('localtunnel');
+    let tunnelRetries = 0;
+    const MAX_RETRIES = 10;
+    const RETRY_DELAY = 5000; // 5 seconds
+
+    async function openTunnel() {
+      try {
+        tunnelRetries++;
+        console.log(`  ⏳ Opening public tunnel${tunnelRetries > 1 ? ` (attempt ${tunnelRetries})` : ''}...`);
+        const tunnel = await localtunnel({ port: PORT });
+        tunnelUrl = tunnel.url;
+        tunnelRetries = 0; // Reset on success
+
+        // Fetch the tunnel password (public IP of this machine)
+        try {
+          const https = require('https');
+          tunnelPassword = await new Promise((resolve) => {
+            https.get('https://loca.lt/mytunnelpassword', (res) => {
+              let data = '';
+              res.on('data', (chunk) => data += chunk);
+              res.on('end', () => resolve(data.trim()));
+            }).on('error', () => resolve(null));
+          });
+        } catch { tunnelPassword = null; }
+
+        console.log(`\n  ╔══════════════════════════════════════════════════════╗`);
+        console.log(`  ║  🌐 PUBLIC URL (share with anyone!):                 ║`);
+        console.log(`  ║  ${tunnelUrl}`);
+        if (tunnelPassword) {
+          console.log(`  ║                                                      ║`);
+          console.log(`  ║  ⚠ First-time visitors must enter this password:     ║`);
+          console.log(`  ║    ${tunnelPassword}`);
+        }
+        console.log(`  ╚══════════════════════════════════════════════════════╝\n`);
+
+        tunnel.on('close', () => {
+          console.log('  ⚠ Tunnel closed unexpectedly.');
+          tunnelUrl = null;
+          tunnelPassword = null;
+          if (tunnelRetries < MAX_RETRIES) {
+            console.log(`  ↻ Auto-reconnecting in ${RETRY_DELAY / 1000}s...`);
+            setTimeout(openTunnel, RETRY_DELAY);
+          } else {
+            console.log('  ✖ Max retries reached. Restart server to try again.');
+          }
+        });
+
+        tunnel.on('error', (err) => {
+          console.error('  ⚠ Tunnel error:', err.message);
+        });
+      } catch (err) {
+        console.error('  ⚠ Could not open tunnel:', err.message);
+        tunnelUrl = null;
+        tunnelPassword = null;
+        if (tunnelRetries < MAX_RETRIES) {
+          console.log(`  ↻ Retrying in ${RETRY_DELAY / 1000}s... (attempt ${tunnelRetries}/${MAX_RETRIES})`);
+          setTimeout(openTunnel, RETRY_DELAY);
+        } else {
+          console.log('  ✖ Max retries reached. Run: npm install localtunnel');
+        }
+      }
+    }
+
+    openTunnel();
+  }
+});

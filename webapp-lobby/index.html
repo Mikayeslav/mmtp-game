@@ -1,0 +1,543 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <meta name="description" content="MMtp — A 2D web-based math expression card game. Build expressions, hit the target, outsmart your opponent.">
+  <meta name="theme-color" content="#1e1e24">
+  <meta property="og:title" content="MMtp — Math Card Game">
+  <meta property="og:description" content="Build math expressions from cards to hit a target number. Play vs bot or friends.">
+  <meta property="og:type" content="website">
+  <title>MMtp — Lobby</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🃏</text></svg>">
+  <link rel="apple-touch-icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🃏</text></svg>">
+  <link rel="stylesheet" href="styles.css">
+  <script src="qr.js"></script>
+</head>
+<body>
+  <!-- Warning banner for file:// protocol -->
+  <div id="file-protocol-warning" style="display:none; background:#ff9800; color:#000; text-align:center; padding:10px 16px; font-weight:600; font-size:14px; position:fixed; top:0; left:0; right:0; z-index:99999; box-shadow:0 2px 8px rgba(0,0,0,.3);">
+    You opened this file directly. For multiplayer, open <a href="http://localhost:3000" style="color:#1a237e; text-decoration:underline; font-weight:700;">http://localhost:3000</a> instead.
+    <button onclick="this.parentElement.style.display='none'" style="margin-left:12px; background:none; border:1px solid #000; cursor:pointer; padding:2px 8px; border-radius:4px;">Dismiss</button>
+  </div>
+  <script>if(location.protocol==='file:')document.getElementById('file-protocol-warning').style.display='block';</script>
+
+  <!-- Press Any Key Screen -->
+  <div id="press-any-key" class="press-any-key">
+    <div class="press-any-key-content">
+      <h1>Press Any Key to Start</h1>
+    </div>
+  </div>
+
+  <!-- Main Menu Root -->
+  <div id="menu-root" class="menu-root hidden">
+    <!-- Player Panel (Top) -->
+    <div class="player-panel">
+      <div class="player-panel-header">
+        <h2>Player Profile</h2>
+        <div id="connection-status" class="connection-status hidden">
+          <span class="status-dot"></span>
+          <span class="status-text">Connected</span>
+        </div>
+      </div>
+      <div class="player-info">
+        <div class="player-name-section">
+          <label for="player-name-input">Name:</label>
+          <input type="text" id="player-name-input" class="player-name-input" maxlength="24">
+          <span id="player-name-display" class="player-name-display">—</span>
+        </div>
+        <!-- Profile Sync -->
+        <div class="profile-sync-section">
+          <div class="profile-code-row">
+            <label for="profile-code-input">Profile Code:</label>
+            <input type="text" id="profile-code-input" class="profile-code-input" maxlength="6" placeholder="XXXXXX" autocomplete="off" spellcheck="false">
+            <button id="btn-profile-load" class="btn btn-small">Load</button>
+            <button id="btn-profile-save" class="btn btn-small">Save</button>
+            <button id="btn-profile-create" class="btn btn-small btn-accent">New</button>
+          </div>
+          <div id="profile-status" class="profile-status hidden"></div>
+        </div>
+        <div class="player-stats">
+          <div class="stat-item">
+            <span class="stat-label">Level:</span>
+            <span id="stat-level" class="stat-value">1</span>
+          </div>
+          <div class="stat-item">
+            <span class="stat-label">XP:</span>
+            <span id="stat-xp" class="stat-value">0 / 100</span>
+            <div class="xp-bar">
+              <div id="xp-fill" class="xp-fill" style="width: 0%"></div>
+            </div>
+          </div>
+          <div class="stat-item">
+            <span class="stat-label">Wins:</span>
+            <span id="stat-wins" class="stat-value">0</span>
+          </div>
+          <div class="stat-item">
+            <span class="stat-label">Losses:</span>
+            <span id="stat-losses" class="stat-value">0</span>
+          </div>
+          <div class="stat-item">
+            <span class="stat-label">Draws:</span>
+            <span id="stat-draws" class="stat-value">0</span>
+          </div>
+          <div class="stat-item">
+            <span class="stat-label">Games:</span>
+            <span id="stat-games" class="stat-value">0</span>
+          </div>
+          <div class="stat-item">
+            <span class="stat-label">Winrate:</span>
+            <span id="stat-winrate" class="stat-value">—</span>
+          </div>
+          <div class="stat-item">
+            <span class="stat-label">Win Streak:</span>
+            <span id="stat-streak" class="stat-value">0</span>
+          </div>
+          <div class="stat-item">
+            <span class="stat-label">Best Streak:</span>
+            <span id="stat-best-streak" class="stat-value">0</span>
+          </div>
+          <div class="stat-item">
+            <span class="stat-label">Rating:</span>
+            <span id="stat-rating" class="stat-value">1000</span>
+          </div>
+          <div class="stat-item">
+            <span class="stat-label">Status:</span>
+            <span id="stat-status" class="stat-value">Idle</span>
+          </div>
+          <div class="stat-item">
+            <span class="stat-label">Last Match:</span>
+            <span id="stat-last" class="stat-value">—</span>
+          </div>
+        </div>
+        
+        <!-- Match Stats Section -->
+        <div id="match-stats-section" class="match-stats-section hidden">
+          <h3>Last Match Stats</h3>
+          <div class="match-stats-grid">
+            <div class="stat-item">
+              <span class="stat-label">Cards Played:</span>
+              <span id="stat-match-played" class="stat-value">0</span>
+            </div>
+            <div class="stat-item">
+              <span class="stat-label">Cards Drawn:</span>
+              <span id="stat-match-drawn" class="stat-value">0</span>
+            </div>
+            <div class="stat-item">
+              <span class="stat-label">Cards Discarded:</span>
+              <span id="stat-match-discarded" class="stat-value">0</span>
+            </div>
+            <div class="stat-item">
+              <span class="stat-label">Expressions:</span>
+              <span id="stat-match-expressions" class="stat-value">0</span>
+            </div>
+            <div class="stat-item">
+              <span class="stat-label">Time Saved:</span>
+              <span id="stat-match-time-saved" class="stat-value">0s</span>
+            </div>
+            <div class="stat-item">
+              <span class="stat-label">Rehands:</span>
+              <span id="stat-match-rehands" class="stat-value">0</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Match Summary Section -->
+        <div id="match-summary-section" class="match-summary-section hidden">
+          <div id="match-summary-result" class="match-summary-result"></div>
+          <div id="match-summary-details" class="match-summary-details"></div>
+        </div>
+
+        <!-- Match History -->
+        <div id="match-history-section" class="match-history-section hidden">
+          <h3>Match History</h3>
+          <div id="match-history-list" class="match-history-list"></div>
+        </div>
+
+        <!-- Player 2 Panel -->
+        <div id="player-p2-panel" class="player-p2-panel hidden">
+          <h3 class="player-p2-title">Player 2 Stats</h3>
+          <div class="player-stats">
+            <div class="stat-item">
+              <span class="stat-label">Level:</span>
+              <span id="stat-p2-level" class="stat-value">—</span>
+            </div>
+            <div class="stat-item">
+              <span class="stat-label">Wins:</span>
+              <span id="stat-p2-wins" class="stat-value">0</span>
+            </div>
+            <div class="stat-item">
+              <span class="stat-label">Losses:</span>
+              <span id="stat-p2-losses" class="stat-value">0</span>
+            </div>
+            <div class="stat-item">
+              <span class="stat-label">Rating:</span>
+              <span id="stat-p2-rating" class="stat-value">—</span>
+            </div>
+          </div>
+          <div id="p2-match-stats-section" class="match-stats-section hidden">
+            <h4>Last Match Stats</h4>
+            <div class="match-stats-grid">
+              <div class="stat-item">
+                <span class="stat-label">Cards Played:</span>
+                <span id="stat-p2-match-played" class="stat-value">0</span>
+              </div>
+              <div class="stat-item">
+                <span class="stat-label">Cards Drawn:</span>
+                <span id="stat-p2-match-drawn" class="stat-value">0</span>
+              </div>
+              <div class="stat-item">
+                <span class="stat-label">Cards Discarded:</span>
+                <span id="stat-p2-match-discarded" class="stat-value">0</span>
+              </div>
+              <div class="stat-item">
+                <span class="stat-label">Expressions:</span>
+                <span id="stat-p2-match-expressions" class="stat-value">0</span>
+              </div>
+              <div class="stat-item">
+                <span class="stat-label">Time Saved:</span>
+                <span id="stat-p2-match-time-saved" class="stat-value">0s</span>
+              </div>
+              <div class="stat-item">
+                <span class="stat-label">Rehands:</span>
+                <span id="stat-p2-match-rehands" class="stat-value">0</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Lobby Panel (Bottom) -->
+    <div class="lobby-panel">
+      <div class="lobby-header">
+        <h2>Lobby</h2>
+        <div id="status" class="status"></div>
+      </div>
+
+      <!-- Room Section (Players + Room Code + Bot) -->
+      <div class="room-section">
+        <h3>Room</h3>
+        <div class="players-list">
+          <div id="player-1-line" class="player-line">
+            <span class="value">(empty)</span>
+            <div id="player-1-badges" class="badges"></div>
+          </div>
+          <div id="player-2-line" class="player-line">
+            <span class="value">(empty)</span>
+            <div id="player-2-badges" class="badges"></div>
+          </div>
+        </div>
+        <div id="ready-summary" class="ready-summary"></div>
+
+        <!-- Simulate P2 (Bot) — inside room section -->
+        <div id="sim-p2-control" class="sim-p2-control hidden">
+          <label>
+            <input type="checkbox" id="simulate-p2" autocomplete="off">
+            Simulate Player 2 (Bot)
+          </label>
+          <div id="bot-difficulty-row" class="bot-difficulty-row hidden">
+            <label for="bot-difficulty">Difficulty:</label>
+            <select id="bot-difficulty" class="bot-difficulty-select">
+              <option value="easy">Easy</option>
+              <option value="medium" selected>Medium</option>
+              <option value="hard">Hard</option>
+            </select>
+          </div>
+          <button id="btn-sim-p2-ready" class="btn btn-small">Toggle Bot Ready</button>
+        </div>
+
+        <!-- Host Room Info -->
+        <div id="host-room-block" class="host-room-block hidden">
+          <div class="room-info">
+            <span>Room Code:</span>
+            <span id="host-room-code" class="room-code">0000</span>
+            <button id="btn-copy-room" class="btn btn-small">Copy</button>
+            <span id="room-age" class="room-age hidden"></span>
+          </div>
+          <!-- Share section (invite link + QR) -->
+          <div id="share-section" class="share-section hidden">
+            <div class="share-row">
+              <div class="share-link-area">
+                <div id="invite-link-preview" class="invite-link-preview"></div>
+                <button id="btn-copy-invite" class="btn btn-accent btn-copy-big" title="Copy invite link for friends">📋 Copy Invite Link</button>
+                <div id="tunnel-password-hint" class="tunnel-password-hint hidden">
+                  Visitors enter password: <strong></strong>
+                </div>
+              </div>
+              <div id="qr-code-container" class="qr-code-container">
+                <div id="qr-code" class="qr-code"></div>
+                <div class="qr-label">Scan to join</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Join Section (inline) -->
+        <div class="join-section">
+          <div class="join-inputs">
+            <input type="text" id="join-room-code" class="join-input" placeholder="Room Code (4 digits)" maxlength="4" pattern="[0-9]{4}">
+            <button id="btn-join" class="btn btn-primary btn-small">Join</button>
+          </div>
+        </div>
+
+        <!-- Server URL Info -->
+        <div id="server-url-info" class="server-url-info hidden">
+          <span class="server-url-label">🌐 Server:</span>
+          <code id="server-url-value" class="server-url-value">—</code>
+          <button id="btn-copy-url" class="btn btn-small" title="Copy server URL">Copy</button>
+        </div>
+      </div>
+
+      <!-- Rules Section -->
+      <div class="rules-section">
+        <h3>Rules</h3>
+        <div class="rule-presets-bar">
+          <select id="rule-preset-select" class="preset-select">
+            <option value="">— Custom —</option>
+          </select>
+          <button id="btn-save-preset" class="btn btn-small btn-preset" title="Save current rules as preset">💾 Save</button>
+          <button id="btn-delete-preset" class="btn btn-small btn-preset btn-danger-small" title="Delete selected preset" disabled>🗑️</button>
+          <button id="btn-export-presets" class="btn btn-small btn-preset" title="Export all custom presets as JSON">📤</button>
+          <button id="btn-import-presets" class="btn btn-small btn-preset" title="Import presets from JSON file">📥</button>
+        </div>
+        <div class="rules-grid">
+          <div class="rule-item">
+            <label for="rule-hand">Hand Size:</label>
+            <input type="number" id="rule-hand" class="rule-input" min="1" max="20" value="7">
+          </div>
+          <div class="rule-item">
+            <label for="rule-timer">Timer (sec):</label>
+            <input type="number" id="rule-timer" class="rule-input" min="5" max="60" value="20">
+          </div>
+          <div class="rule-item">
+            <label for="rule-min">Target Min:</label>
+            <input type="number" id="rule-min" class="rule-input" min="-50" max="50" value="1">
+          </div>
+          <div class="rule-item">
+            <label for="rule-max">Target Max:</label>
+            <input type="number" id="rule-max" class="rule-input" min="-50" max="50" value="10">
+          </div>
+          <div class="rule-item">
+            <label for="rule-win">Win Points:</label>
+            <input type="number" id="rule-win" class="rule-input" min="1" max="15" value="5">
+          </div>
+          <div class="rule-item">
+            <label for="rule-rehand-draw">Rehand Draw:</label>
+            <input type="number" id="rule-rehand-draw" class="rule-input" min="0" max="20" value="5">
+          </div>
+          <div class="rule-item">
+            <label for="rule-min-draw">Min Draw/Click:</label>
+            <input type="number" id="rule-min-draw" class="rule-input" min="1" max="5" value="1">
+          </div>
+          <div class="rule-item">
+            <label for="rule-max-draw-turn">Max Draw/Turn:</label>
+            <input type="number" id="rule-max-draw-turn" class="rule-input" min="0" max="20" value="0">
+          </div>
+          <div class="rule-item rule-item-checkbox">
+            <label for="rule-special-cards">
+              <input type="checkbox" id="rule-special-cards" checked>
+              Special Cards
+            </label>
+          </div>
+          <div class="rule-item rule-item-checkbox">
+            <label for="rule-nearest-score" title="Allow scoring when close to target (reduced points based on distance)">
+              <input type="checkbox" id="rule-nearest-score">
+              Nearest Score
+            </label>
+          </div>
+        </div>
+        <div id="rules-error" class="rules-error hidden"></div>
+        <button id="btn-reset-rules" class="btn btn-small hidden">Reset to Defaults</button>
+      </div>
+
+      <!-- Action Buttons -->
+      <div class="action-buttons">
+        <button id="btn-host" class="btn btn-primary">Host Room</button>
+        <button id="btn-ready" class="btn btn-secondary" disabled>Ready</button>
+        <button id="btn-start" class="btn btn-success" disabled>Start Game</button>
+        <button id="btn-leave" class="btn btn-danger hidden">Leave</button>
+      </div>
+
+      <!-- Toolbar (compact utility buttons) -->
+      <div class="lobby-toolbar">
+        <button id="btn-help" class="btn btn-small btn-tool">❓ Help</button>
+        <button id="btn-settings" class="btn btn-small btn-tool">⚙️ Settings</button>
+        <button id="btn-achievements" class="btn btn-small btn-tool">🏆 Achievements</button>
+        <button id="btn-cheat-panel" class="btn btn-small btn-tool">🧪 Cheats</button>
+        <button id="btn-toggle-hints-inline" class="btn btn-small btn-tool">💡 Hints</button>
+      </div>
+
+      <!-- Lobby Hints (collapsible) -->
+      <div id="lobby-hints-inline" class="lobby-hints-inline hidden">
+        <div id="hints-inline-content" class="hints-content">
+          <p>• Host a room or join with a 4-digit code</p>
+          <p>• Check "Simulate Player 2 (Bot)" for single-player practice</p>
+          <p>• All players must be ready before host can start</p>
+          <p>• Keyboard: <kbd>H</kbd>=Host, <kbd>R</kbd>=Ready, <kbd>S</kbd>=Start, <kbd>Esc</kbd>=Leave</p>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- Loading Spinner -->
+  <div id="loading-spinner" class="loading-spinner hidden">
+    <div class="spinner"></div>
+  </div>
+
+  <!-- Help Modal -->
+  <div id="help-modal" class="modal hidden">
+    <div class="modal-backdrop"></div>
+    <div class="modal-content">
+      <div class="modal-header">
+        <h2>Help</h2>
+        <button id="btn-close-help" class="btn-close">×</button>
+      </div>
+      <div class="modal-body">
+        <h3>How to Play</h3>
+        <p>Build mathematical expressions to match target numbers!</p>
+        <h3>Controls</h3>
+        <ul>
+          <li><strong>H</strong> - Host room</li>
+          <li><strong>R</strong> - Toggle ready</li>
+          <li><strong>S</strong> - Start game (host only)</li>
+          <li><strong>ESC</strong> - Leave/Close help</li>
+          <li><strong>?</strong> - Toggle help</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+
+  <!-- Settings Panel -->
+  <div id="settings-panel" class="modal hidden">
+    <div class="settings-backdrop"></div>
+    <div class="modal-content">
+      <div class="modal-header">
+        <h2>Settings</h2>
+        <button id="btn-close-settings" class="btn-close">&times;</button>
+      </div>
+      <div class="modal-body settings-body">
+
+        <div class="settings-group">
+          <h3>UI Size</h3>
+          <div class="settings-radios">
+            <label><input type="radio" name="ui-size" id="ui-size-small" value="small"> Small</label>
+            <label><input type="radio" name="ui-size" id="ui-size-normal" value="normal" checked> Normal</label>
+            <label><input type="radio" name="ui-size" id="ui-size-large" value="large"> Large</label>
+          </div>
+        </div>
+
+        <div class="settings-group">
+          <h3>Gameplay</h3>
+          <label class="settings-toggle"><input type="checkbox" id="card-animations" checked> Card animations</label>
+          <label class="settings-toggle"><input type="checkbox" id="target-highlight" checked> Target highlight effect</label>
+          <label class="settings-toggle"><input type="checkbox" id="auto-sort-hand"> Auto-sort hand after draw</label>
+          <label class="settings-toggle"><input type="checkbox" id="show-expression-hint"> Show expression value hint</label>
+          <label class="settings-toggle"><input type="checkbox" id="sound-effects"> Sound effects</label>
+        </div>
+
+        <div class="settings-group">
+          <h3>Discard Pile</h3>
+          <div class="settings-row">
+            <label for="discard-amount">Visible cards:</label>
+            <input type="number" id="discard-amount" value="15" min="1" max="100" class="settings-input">
+          </div>
+          <label class="settings-toggle"><input type="checkbox" id="discard-opacity" checked> Fade older cards</label>
+        </div>
+
+      </div>
+    </div>
+  </div>
+
+  <!-- Cheat Panel -->
+  <div id="cheat-panel" class="modal hidden">
+    <div class="cheat-backdrop"></div>
+    <div class="modal-content modal-wide">
+      <div class="modal-header">
+        <h2>Cheat Panel</h2>
+        <button id="btn-close-cheat" class="btn-close">&times;</button>
+      </div>
+      <div class="modal-body cheat-body">
+
+        <div class="cheat-section">
+          <div class="cheat-section-title">XP &amp; Level</div>
+          <div class="cheat-section-content">
+            <div class="cheat-row">
+              <input type="number" id="cheat-xp-amount" value="100" min="1" class="cheat-input">
+              <button id="cheat-add-xp" class="btn btn-small">Add XP</button>
+              <button id="cheat-reset-xp" class="btn btn-small">Reset XP</button>
+            </div>
+            <div class="cheat-row">
+              <input type="number" id="cheat-set-level" value="1" min="1" class="cheat-input">
+              <button id="cheat-apply-level" class="btn btn-small">Set Level</button>
+              <button id="cheat-level-up" class="btn btn-small">Level +</button>
+              <button id="cheat-level-down" class="btn btn-small">Level &minus;</button>
+            </div>
+          </div>
+        </div>
+
+        <div class="cheat-section">
+          <div class="cheat-section-title">Wins / Losses</div>
+          <div class="cheat-section-content">
+            <div class="cheat-row">
+              <input type="number" id="cheat-add-wins" value="1" min="1" class="cheat-input">
+              <button id="cheat-apply-wins" class="btn btn-small">Add Wins</button>
+            </div>
+            <div class="cheat-row">
+              <input type="number" id="cheat-add-losses" value="1" min="1" class="cheat-input">
+              <button id="cheat-apply-losses" class="btn btn-small">Add Losses</button>
+            </div>
+          </div>
+        </div>
+
+        <div class="cheat-section">
+          <div class="cheat-section-title">Rating</div>
+          <div class="cheat-section-content">
+            <div class="cheat-row">
+              <input type="number" id="cheat-set-rating" value="1000" min="0" class="cheat-input">
+              <button id="cheat-apply-rating" class="btn btn-small">Set Rating</button>
+              <button id="cheat-rating-plus" class="btn btn-small">+50</button>
+              <button id="cheat-rating-minus" class="btn btn-small">&minus;50</button>
+            </div>
+          </div>
+        </div>
+
+        <div class="cheat-section">
+          <div class="cheat-section-title">Danger Zone</div>
+          <div class="cheat-section-content">
+            <button id="cheat-reset-stats" class="btn btn-danger">Reset ALL Stats</button>
+          </div>
+        </div>
+
+      </div>
+    </div>
+  </div>
+
+  <!-- Achievements Modal -->
+  <div id="achievements-panel" class="modal hidden">
+    <div class="modal-backdrop"></div>
+    <div class="modal-content achievements-modal-content">
+      <div class="modal-header">
+        <h2>🏆 Achievements</h2>
+        <button id="btn-close-achievements" class="btn-close">&times;</button>
+      </div>
+      <div class="modal-body">
+        <div class="achievements-summary">
+          <span id="achievements-count">0/0</span> unlocked
+          <div class="achievements-progress-bar"><div id="achievements-progress-fill" class="achievements-progress-fill"></div></div>
+        </div>
+        <div id="achievements-list" class="achievements-list"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Version -->
+  <div class="version">v<span id="version-number">0.9.0</span></div>
+
+  <script src="https://cdn.socket.io/4.7.4/socket.io.min.js"></script>
+  <script src="sfx.js"></script>
+  <script src="net-client.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>

@@ -1,0 +1,568 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <meta name="description" content="MMtp — Build math expressions from cards to hit a target number. Gameplay scene.">
+  <meta name="theme-color" content="#1e1e24">
+  <meta property="og:title" content="MMtp — Math Card Game">
+  <meta property="og:description" content="Build math expressions from cards to hit a target number. Play vs bot or friends.">
+  <meta property="og:type" content="website">
+  <title>MMtp — PlayingScene</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🃏</text></svg>">
+  <link rel="apple-touch-icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🃏</text></svg>">
+  <link rel="stylesheet" href="gameplay.css" />
+</head>
+<body>
+  <!-- Warning banner for file:// protocol -->
+  <div id="file-protocol-warning" style="display:none; background:#ff9800; color:#000; text-align:center; padding:10px 16px; font-weight:600; font-size:14px; position:fixed; top:0; left:0; right:0; z-index:99999; box-shadow:0 2px 8px rgba(0,0,0,.3);">
+    You opened this file directly. For multiplayer, open <a href="http://localhost:3000" style="color:#1a237e; text-decoration:underline; font-weight:700;">http://localhost:3000</a> instead.
+    <button onclick="this.parentElement.style.display='none'" style="margin-left:12px; background:none; border:1px solid #000; cursor:pointer; padding:2px 8px; border-radius:4px;">Dismiss</button>
+  </div>
+  <script>if(location.protocol==='file:')document.getElementById('file-protocol-warning').style.display='block';</script>
+
+  <div class="gameplay-root">
+    <!-- Top HUD -->
+    <div id="hud-top" class="hud-top">
+      <div class="hud-left">
+        <div class="target-display">
+          <span class="target-label">Target</span>
+          <span id="target-value" class="target-value">1</span>
+        </div>
+        <div class="timer-display">
+          <span class="timer-label">Time</span>
+          <span id="timer-value" class="timer-value">00:20</span>
+        </div>
+      </div>
+      <div class="hud-center">
+        <div class="turn-indicator">
+          <span id="round-badge" class="round-badge" title="Current round">R1</span>
+          <span id="turn-text">Turn: Player 1</span>
+          <span id="streak-badge" class="streak-badge streak-none" title="Current win streak"></span>
+        </div>
+      </div>
+      <div class="hud-right">
+        <div class="score-display">
+          <div class="score-item">
+            <span class="score-label">P1:</span>
+            <span id="score-p1" class="score-value">0</span>
+          </div>
+          <div class="score-item">
+            <span class="score-label">P2:</span>
+            <span id="score-p2" class="score-value">0</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Main Game Area -->
+    <div class="game-area">
+      <!-- Turn Arrow (Big Triangle) -->
+      <div id="turn-arrow" class="turn-arrow turn-arrow-down"></div>
+
+      <!-- Player 2 Hand (Top) -->
+      <div id="hand-p2" class="hand hand-p2" data-player="2">
+        <div class="hand-header">
+          <div class="hand-label">Player 2</div>
+        </div>
+        <div class="hand-body">
+          <div class="hand-cards-wrap">
+            <div class="hand-cards" id="cards-p2"></div>
+            <div id="hand-count-badge-p2" class="hand-count-badge">0/0</div>
+          </div>
+          <div class="score-zone" id="score-zone-p2" aria-label="Player 2 score piles"></div>
+        </div>
+      </div>
+
+      <!-- Playfield (Center) -->
+      <div class="playfield-container">
+        <div class="playfield-label">Playfield</div>
+        <div id="playfield" class="playfield" role="button" tabindex="0" aria-label="Click to score">
+          <div id="target-big" class="target-big">1</div>
+          <div id="expression-display" class="expression-display"></div>
+          <div class="playfield-hint">Click playfield to place / score</div>
+        </div>
+      </div>
+
+      <div class="playfield-controls">
+        <button id="btn-clear-playfield" type="button" class="btn-undo-playfield" aria-label="Clear expression" title="Clear expression (C)">Clear</button>
+        <button id="btn-undo-playfield" type="button" class="btn-undo-playfield" aria-label="Undo last playfield card" title="Undo last card (U)">Undo</button>
+      </div>
+
+      <!-- Player 1 Hand (Bottom) -->
+      <div id="hand-p1" class="hand hand-p1" data-player="1">
+        <div class="hand-header">
+          <div class="hand-label">Player 1</div>
+          <div class="hand-header-right">
+            <span id="hand-count-p1" class="hand-count">0/0</span>
+            <button id="btn-sort-hand" type="button" class="btn-sort-hand" aria-label="Sort hand" title="Sort hand (S)">Sort</button>
+          </div>
+        </div>
+        <div class="hand-body">
+          <div class="hand-cards-wrap">
+            <div class="hand-cards" id="cards-p1"></div>
+          </div>
+          <div class="score-zone" id="score-zone-p1" aria-label="Player 1 score piles"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Deck (Right Side) -->
+    <div class="deck-container">
+      <button id="btn-draw" class="deck-button" type="button" aria-label="Draw card">
+        <div class="deck-icon">🃏</div>
+        <div class="deck-label">Deck</div>
+        <div id="deck-count" class="deck-count">∞</div>
+        <div id="deck-loading" class="deck-loading hidden">Holding...</div>
+      </button>
+    </div>
+
+    <!-- Floating Turn Timer (Left Side) - Clickable -->
+    <div id="timer-floating" class="timer-floating" role="button" tabindex="0" aria-label="Click to end turn" title="Click to end turn instantly. Unused time = bonus XP!">
+      <div class="timer-floating-label">TIME</div>
+      <div class="timer-floating-value">00:20</div>
+      <div class="timer-floating-hint">Click to end turn</div>
+    </div>
+
+    <button id="btn-skip-bot" type="button" class="btn-skip-bot hidden" aria-label="Skip bot turn" title="Skip bot turn (fast testing)">Skip Bot</button>
+
+    <!-- Expression History Panel (collapsible, right side) -->
+    <div id="expr-history-panel" class="expr-history-panel collapsed">
+      <button id="btn-toggle-expr-history" class="expr-history-toggle" type="button" aria-label="Toggle expression history" title="Expression History (H)">
+        <span class="expr-history-toggle-icon">📋</span>
+        <span class="expr-history-toggle-badge" id="expr-history-badge">0</span>
+      </button>
+      <div class="expr-history-content">
+        <div class="expr-history-header">
+          <h3>Expressions</h3>
+          <span id="expr-history-round" class="expr-history-round">Round 0</span>
+        </div>
+        <div id="expr-history-list" class="expr-history-list"></div>
+        <div class="expr-history-empty" id="expr-history-empty">No expressions scored yet</div>
+      </div>
+    </div>
+
+    <!-- In-Game Chat (multiplayer only) -->
+    <div id="chat-panel" class="chat-panel collapsed hidden">
+      <button id="btn-toggle-chat" class="chat-toggle" type="button" aria-label="Toggle chat" title="Chat (T)">
+        <span class="chat-toggle-icon">💬</span>
+        <span class="chat-toggle-badge hidden" id="chat-badge">0</span>
+      </button>
+      <div class="chat-content">
+        <div class="chat-header">
+          <h3>Chat</h3>
+        </div>
+        <div id="chat-messages" class="chat-messages"></div>
+        <div class="chat-input-bar">
+          <input type="text" id="chat-input" class="chat-input" placeholder="Type a message..." maxlength="200" autocomplete="off" />
+          <button id="btn-chat-send" class="chat-send-btn" type="button" aria-label="Send message">➤</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Toast (replaces browser alert popups) -->
+    <div id="toast" class="toast hidden" role="status" aria-live="polite"></div>
+
+    <!-- XP Notifications (Call of Duty style) -->
+    <div id="xp-notifications" class="xp-notifications" aria-live="polite"></div>
+
+    <!-- Help trigger button (bottom-left) -->
+    <button id="btn-help-trigger" type="button" class="btn-help-trigger" aria-label="Keyboard shortcuts (? key)" title="Help & Shortcuts (?)">?</button>
+
+    <!-- Cheat Panel Toggle Button -->
+    <button id="btn-cheat-panel" type="button" class="btn-cheat-toggle" aria-label="Open cheat panel" title="Cheat Panel (Ctrl+Shift+C)">🧪</button>
+
+    <!-- Help Panel (ESC Menu) -->
+    <div id="help-panel" class="help-panel hidden" role="dialog" aria-labelledby="help-title" aria-modal="true">
+      <div class="help-content">
+        <div class="help-header">
+          <h2 id="help-title">Game Help</h2>
+          <button id="btn-close-help" class="btn-close" aria-label="Close help">×</button>
+        </div>
+        <div class="help-body">
+          <div class="help-section">
+            <h3>How to Play</h3>
+            <ul>
+              <li><strong>Place Cards:</strong> Click or drag cards from your hand to the playfield</li>
+              <li><strong>Mass Select:</strong> Hold Shift and click multiple cards; mass‑discard with <kbd>Delete</kbd>/<kbd>D</kbd></li>
+              <li><strong>Build Expression:</strong> Create a valid expression: Number, then Operator + Number, repeat</li>
+              <li><strong>Score:</strong> Click the playfield when your expression equals the target number</li>
+              <li><strong>Discard:</strong> Select a card, then press <kbd>Delete</kbd> or <kbd>D</kbd> to discard it</li>
+              <li><strong>End Turn:</strong> Click the timer to end instantly, or wait for timer</li>
+              <li><strong>Rehand:</strong> Hold the deck button to discard your hand and draw based on host rule (ends turn)</li>
+              <li><strong>Undo / Clear:</strong> Use the buttons under the playfield to undo last card or clear the whole expression</li>
+              <li><strong>Bot:</strong> When enabled by host, Player 2 will auto‑draw and pass turns</li>
+            </ul>
+          </div>
+          <div class="help-section">
+            <h3>Expression Rules</h3>
+            <ul>
+              <li>Must start with a number (can be negative: <code>-3</code>)</li>
+              <li>Then: Operator + Number, repeat</li>
+              <li>Example: <code>1 + 2 × 3</code> = <code>9</code> (left-to-right)</li>
+              <li>Operators: <code>+</code> <code>−</code> <code>×</code> <code>÷</code></li>
+            </ul>
+          </div>
+          <div class="help-section">
+            <h3>Tips</h3>
+            <ul>
+              <li><strong>Unused Time = Bonus XP:</strong> Finishing your turn early gives you extra experience!</li>
+              <li>Use mass selection to quickly place multiple cards</li>
+              <li>Rehand is useful when you have a bad hand, but it ends your turn immediately</li>
+            </ul>
+          </div>
+          <div class="help-section">
+            <h3>Keyboard Shortcuts</h3>
+            <ul>
+              <li><kbd>ESC</kbd> / <kbd>?</kbd> - Open/close this help</li>
+              <li><kbd>Space</kbd> - Draw card (when it's your turn)</li>
+              <li><kbd>Enter</kbd> - Try to score</li>
+              <li><kbd>Delete</kbd> / <kbd>Backspace</kbd> / <kbd>D</kbd> - Discard selected card(s)</li>
+              <li><kbd>S</kbd> - Sort your hand</li>
+              <li><kbd>U</kbd> - Undo last playfield card</li>
+              <li><kbd>C</kbd> - Clear playfield expression</li>
+              <li><kbd>Shift</kbd> + Click - Add/remove card to selection</li>
+              <li><kbd>H</kbd> - Toggle expression history panel</li>
+              <li><kbd>T</kbd> - Toggle chat (multiplayer only)</li>
+              <li><kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>C</kbd> - Toggle cheat panel</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+      <div class="help-backdrop" aria-label="Close help"></div>
+    </div>
+
+    <!-- Cheat Panel -->
+    <div id="cheat-panel" class="cheat-panel hidden" role="dialog" aria-labelledby="cheat-title" aria-modal="true">
+      <div class="cheat-content">
+        <div class="cheat-header">
+          <h2 id="cheat-title">Cheat Panel</h2>
+          <button id="btn-close-cheat" class="btn-close" aria-label="Close cheat panel">×</button>
+        </div>
+        <div class="cheat-body">
+          <div class="cheat-warning">⚠️ For testing only</div>
+          
+          <!-- Section A: Testing Features -->
+          <div class="cheat-section">
+            <h3 class="cheat-section-title" data-section="testing">Testing Features</h3>
+            <div class="cheat-section-content" id="section-testing">
+              <div class="cheat-control-group">
+                <label class="cheat-checkbox">
+                  <input type="checkbox" id="cheat-bot-p1" />
+                  <span>Enable P1 Bot</span>
+                </label>
+                <label class="cheat-checkbox">
+                  <input type="checkbox" id="cheat-skip-bot" />
+                  <span>Skip Bot Turn</span>
+                </label>
+                <label class="cheat-checkbox">
+                  <input type="checkbox" id="cheat-auto-skip-bot" />
+                  <span>Auto-skip bot turns</span>
+                </label>
+                <label>
+                  Bot Difficulty:
+                  <select id="cheat-bot-difficulty">
+                    <option value="easy">Easy</option>
+                    <option value="medium" selected>Medium</option>
+                    <option value="hard">Hard</option>
+                  </select>
+                </label>
+              </div>
+              <div class="cheat-control-group">
+                <button id="cheat-force-end-turn" type="button" class="btn-cheat">Force End Turn</button>
+                <button id="cheat-force-win-p1" type="button" class="btn-cheat">Force Win (P1)</button>
+                <button id="cheat-force-win-p2" type="button" class="btn-cheat">Force Win (P2)</button>
+                <button id="cheat-force-draw" type="button" class="btn-cheat">Force Draw</button>
+              </div>
+              <div class="cheat-control-group">
+                <label>
+                  Set Target: <input type="number" id="cheat-set-target" min="1" max="99" />
+                  <button id="cheat-apply-target" type="button" class="btn-cheat-small">Apply</button>
+                </label>
+                <label>
+                  Set Timer: <input type="number" id="cheat-set-timer" min="0" max="300" />
+                  <button id="cheat-apply-timer" type="button" class="btn-cheat-small">Apply</button>
+                </label>
+              </div>
+              <div class="cheat-control-group">
+                <label>
+                  Game Speed:
+                  <select id="cheat-game-speed">
+                    <option value="1">1x (Normal)</option>
+                    <option value="2">2x (Fast)</option>
+                    <option value="3">3x (Very Fast)</option>
+                    <option value="5">5x (Ultra Fast)</option>
+                    <option value="10">10x (Extreme)</option>
+                  </select>
+                </label>
+                <label>
+                  Bot Min Expression Length:
+                  <select id="cheat-bot-min-length">
+                    <option value="0">No minimum</option>
+                    <option value="4">4 cards minimum</option>
+                    <option value="5">5 cards minimum</option>
+                    <option value="6">6 cards minimum</option>
+                    <option value="7">7 cards minimum</option>
+                    <option value="8">8 cards minimum</option>
+                  </select>
+                </label>
+              </div>
+              <div class="cheat-control-group">
+                <h4 style="margin: 10px 0 5px 0; font-size: 14px;">Discard Pile Testing</h4>
+                <label style="display: flex; align-items: center; gap: 8px; margin-bottom: 8px;">
+                  <input type="checkbox" id="cheat-show-all-discards" />
+                  <span>Show ALL discarded cards (indefinitely)</span>
+                </label>
+                <button id="cheat-clear-discard-pile" type="button" class="btn-cheat">Clear Discard Pile</button>
+                <button id="cheat-add-discard-cards" type="button" class="btn-cheat">Add 10 Random Cards</button>
+                <button id="cheat-show-discard-count" type="button" class="btn-cheat">Show Discard Count</button>
+              </div>
+            </div>
+          </div>
+
+          <!-- Section B: Stat Manipulation -->
+          <div class="cheat-section">
+            <h3 class="cheat-section-title" data-section="stats">Stat Manipulation</h3>
+            <div class="cheat-section-content" id="section-stats">
+              <div class="cheat-control-group">
+                <label>
+                  Add XP: <input type="number" id="cheat-xp-amount" min="0" value="50" />
+                  <button id="cheat-add-xp" type="button" class="btn-cheat-small">Add</button>
+                </label>
+                <button id="cheat-reset-xp" type="button" class="btn-cheat">Set XP to 0</button>
+              </div>
+              <div class="cheat-control-group">
+                <label>
+                  Set Level: <input type="number" id="cheat-set-level" min="1" max="100" />
+                  <button id="cheat-apply-level" type="button" class="btn-cheat-small">Apply</button>
+                </label>
+                <button id="cheat-level-up" type="button" class="btn-cheat">Level Up</button>
+                <button id="cheat-level-down" type="button" class="btn-cheat">Level Down</button>
+              </div>
+              <div class="cheat-control-group">
+                <label>
+                  Add Wins: <input type="number" id="cheat-add-wins" min="0" value="1" />
+                  <button id="cheat-apply-wins" type="button" class="btn-cheat-small">Add</button>
+                </label>
+                <label>
+                  Add Losses: <input type="number" id="cheat-add-losses" min="0" value="1" />
+                  <button id="cheat-apply-losses" type="button" class="btn-cheat-small">Add</button>
+                </label>
+              </div>
+              <div class="cheat-control-group">
+                <label>
+                  Set Rating: <input type="number" id="cheat-set-rating" min="0" value="1000" />
+                  <button id="cheat-apply-rating" type="button" class="btn-cheat-small">Apply</button>
+                </label>
+                <button id="cheat-rating-plus" type="button" class="btn-cheat">+50 Rating</button>
+                <button id="cheat-rating-minus" type="button" class="btn-cheat">-50 Rating</button>
+              </div>
+              <div class="cheat-control-group">
+                <button id="cheat-reset-stats" type="button" class="btn-cheat btn-cheat-danger">Reset All Stats</button>
+              </div>
+            </div>
+          </div>
+
+          <!-- Section C: Game Override -->
+          <div class="cheat-section">
+            <h3 class="cheat-section-title" data-section="override">Game Override</h3>
+            <div class="cheat-section-content" id="section-override">
+              <div class="cheat-control-group">
+                <label class="cheat-checkbox">
+                  <input type="checkbox" id="cheat-pause-timer" />
+                  <span>Pause Timer</span>
+                </label>
+                <label class="cheat-checkbox">
+                  <input type="checkbox" id="cheat-infinite-timer" />
+                  <span>Infinite Timer</span>
+                </label>
+              </div>
+              <div class="cheat-control-group">
+                <label>
+                  Give Card to P1: 
+                  <select id="cheat-card-p1-type">
+                    <option value="number">Number</option>
+                    <option value="operator">Operator</option>
+                  </select>
+                  <input type="number" id="cheat-card-p1-value" min="-9" max="9" value="5" />
+                  <button id="cheat-give-card-p1" type="button" class="btn-cheat-small">Give</button>
+                </label>
+                <button id="cheat-fill-hand-p1" type="button" class="btn-cheat">Fill P1 Hand</button>
+              </div>
+              <div class="cheat-control-group">
+                <button id="cheat-empty-deck" type="button" class="btn-cheat">Empty Deck</button>
+                <button id="cheat-reshuffle-deck" type="button" class="btn-cheat">Reshuffle Deck</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="cheat-backdrop" aria-label="Close cheat panel"></div>
+    </div>
+
+    <!-- Game Over Modal -->
+    <div id="game-over-modal" class="modal hidden" role="dialog" aria-labelledby="game-over-title" aria-modal="true">
+      <div class="modal-content modal-content-large">
+        <div class="modal-header">
+          <h2 id="game-over-title">Game Over</h2>
+        </div>
+        <div class="modal-body">
+          <!-- Tabs -->
+          <div class="game-over-tabs">
+            <button class="game-over-tab active" data-tab="summary">Summary</button>
+            <button class="game-over-tab" data-tab="stats">Stats</button>
+            <button class="game-over-tab" data-tab="expressions">Expressions</button>
+            <button class="game-over-tab" data-tab="xp">XP Breakdown</button>
+          </div>
+
+          <!-- Summary Tab -->
+          <div class="game-over-tab-content active" id="tab-summary">
+            <div id="game-over-banner" class="game-over-banner"></div>
+            <div id="game-over-message" class="game-over-message"></div>
+            <div class="game-over-stats">
+              <div class="stat-item">
+                <span class="stat-label">Final Scores:</span>
+                <span class="stat-value"><span id="final-score-p1">0</span> — <span id="final-score-p2">0</span></span>
+              </div>
+              <div class="stat-item">
+                <span class="stat-label">Duration:</span>
+                <span id="match-duration" class="stat-value">—</span>
+              </div>
+              <div class="stat-item">
+                <span class="stat-label">Turns Played:</span>
+                <span id="match-turns" class="stat-value">0</span>
+              </div>
+              <div class="stat-item">
+                <span class="stat-label">Total Cards Played:</span>
+                <span id="match-total-cards" class="stat-value">0</span>
+              </div>
+              <div class="stat-item">
+                <span class="stat-label">Expressions Scored:</span>
+                <span id="match-total-expressions" class="stat-value">0</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Stats Tab -->
+          <div class="game-over-tab-content" id="tab-stats">
+            <div class="match-stats-grid">
+              <div class="match-stats-column">
+                <h3 id="stats-p1-name">Player 1</h3>
+                <div class="match-stat-item">
+                  <span class="match-stat-label">Cards Played:</span>
+                  <span id="stat-p1-played" class="match-stat-value">0</span>
+                </div>
+                <div class="match-stat-item">
+                  <span class="match-stat-label">Cards Drawn:</span>
+                  <span id="stat-p1-drawn" class="match-stat-value">0</span>
+                </div>
+                <div class="match-stat-item">
+                  <span class="match-stat-label">Cards Discarded:</span>
+                  <span id="stat-p1-discarded" class="match-stat-value">0</span>
+                </div>
+                <div class="match-stat-item">
+                  <span class="match-stat-label">Expressions Scored:</span>
+                  <span id="stat-p1-expressions" class="match-stat-value">0</span>
+                </div>
+                <div class="match-stat-item">
+                  <span class="match-stat-label">Avg Expression Length:</span>
+                  <span id="stat-p1-avg-length" class="match-stat-value">—</span>
+                </div>
+                <div class="match-stat-item">
+                  <span class="match-stat-label">Best Expression:</span>
+                  <span id="stat-p1-best" class="match-stat-value">—</span>
+                </div>
+                <div class="match-stat-item">
+                  <span class="match-stat-label">Time Saved:</span>
+                  <span id="stat-p1-time-saved" class="match-stat-value">0s</span>
+                </div>
+                <div class="match-stat-item">
+                  <span class="match-stat-label">Rehands Used:</span>
+                  <span id="stat-p1-rehands" class="match-stat-value">0</span>
+                </div>
+              </div>
+              <div class="match-stats-column">
+                <h3 id="stats-p2-name">Player 2</h3>
+                <div class="match-stat-item">
+                  <span class="match-stat-label">Cards Played:</span>
+                  <span id="stat-p2-played" class="match-stat-value">0</span>
+                </div>
+                <div class="match-stat-item">
+                  <span class="match-stat-label">Cards Drawn:</span>
+                  <span id="stat-p2-drawn" class="match-stat-value">0</span>
+                </div>
+                <div class="match-stat-item">
+                  <span class="match-stat-label">Cards Discarded:</span>
+                  <span id="stat-p2-discarded" class="match-stat-value">0</span>
+                </div>
+                <div class="match-stat-item">
+                  <span class="match-stat-label">Expressions Scored:</span>
+                  <span id="stat-p2-expressions" class="match-stat-value">0</span>
+                </div>
+                <div class="match-stat-item">
+                  <span class="match-stat-label">Avg Expression Length:</span>
+                  <span id="stat-p2-avg-length" class="match-stat-value">—</span>
+                </div>
+                <div class="match-stat-item">
+                  <span class="match-stat-label">Best Expression:</span>
+                  <span id="stat-p2-best" class="match-stat-value">—</span>
+                </div>
+                <div class="match-stat-item">
+                  <span class="match-stat-label">Time Saved:</span>
+                  <span id="stat-p2-time-saved" class="match-stat-value">0s</span>
+                </div>
+                <div class="match-stat-item">
+                  <span class="match-stat-label">Rehands Used:</span>
+                  <span id="stat-p2-rehands" class="match-stat-value">0</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Expressions Tab -->
+          <div class="game-over-tab-content" id="tab-expressions">
+            <div id="expressions-list" class="expressions-list"></div>
+          </div>
+
+          <!-- XP Breakdown Tab -->
+          <div class="game-over-tab-content" id="tab-xp">
+            <div class="xp-breakdown">
+              <div class="xp-breakdown-item">
+                <span class="xp-breakdown-label">Base XP:</span>
+                <span id="xp-base" class="xp-breakdown-value">+0</span>
+              </div>
+              <div class="xp-breakdown-item">
+                <span class="xp-breakdown-label">Win Bonus:</span>
+                <span id="xp-win" class="xp-breakdown-value">+0</span>
+              </div>
+              <div class="xp-breakdown-item">
+                <span class="xp-breakdown-label">Time Bonus:</span>
+                <span id="xp-time" class="xp-breakdown-value">+0</span>
+              </div>
+              <div class="xp-breakdown-item xp-breakdown-total">
+                <span class="xp-breakdown-label">Total XP:</span>
+                <span id="xp-total" class="xp-breakdown-value">+0</span>
+              </div>
+              <div class="xp-breakdown-item">
+                <span class="xp-breakdown-label">Level Progress:</span>
+                <span id="xp-progress" class="xp-breakdown-value">Level 1: 0/100 XP</span>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button id="btn-rematch" type="button" class="btn btn-accent">Rematch</button>
+          <button id="btn-back-to-lobby" type="button" class="btn btn-primary">Back to Lobby</button>
+        </div>
+      </div>
+      <div class="modal-backdrop" aria-label="Close modal"></div>
+    </div>
+  </div>
+  <script src="https://cdn.socket.io/4.7.4/socket.io.min.js"></script>
+  <script src="net-client.js"></script>
+  <script src="sfx.js"></script>
+  <script src="server/expression.js"></script>
+  <script src="bot-ai-v2.js"></script>
+  <script src="gameplay.js"></script>
+</body>
+</html>
