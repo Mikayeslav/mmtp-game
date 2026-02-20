@@ -674,6 +674,83 @@ body {
   box-shadow: 0 0 0 2px rgba(74, 158, 255, 0.2);
 }
 
+/* ── Operator / Special card selection (QoL rules) ── */
+.rule-item-full {
+  grid-column: 1 / -1;
+}
+
+.rule-group-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 6px;
+}
+
+.rule-group-label {
+  font-size: 0.875rem;
+  color: var(--text-secondary);
+  font-weight: 600;
+}
+
+.rule-group-presets {
+  display: flex;
+  gap: 4px;
+}
+
+.btn-tiny {
+  padding: 2px 8px;
+  font-size: 0.7rem;
+  border-radius: var(--radius-sm);
+  background: var(--bg-tertiary);
+  color: var(--text-secondary);
+  border: 1px solid var(--border);
+  cursor: pointer;
+  transition: all 0.15s;
+}
+.btn-tiny:hover {
+  background: var(--accent);
+  color: #fff;
+  border-color: var(--accent);
+}
+
+.rule-checkbox-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.chip-check {
+  cursor: pointer;
+  user-select: none;
+}
+.chip-check input[type="checkbox"] {
+  display: none;
+}
+.chip-check .chip {
+  display: inline-block;
+  padding: 4px 12px;
+  font-size: 0.825rem;
+  border-radius: 999px;
+  background: var(--bg-primary);
+  border: 1.5px solid var(--border);
+  color: var(--text-secondary);
+  transition: all 0.15s;
+}
+.chip-check input:checked + .chip {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #fff;
+  font-weight: 600;
+}
+.chip-check:hover .chip {
+  border-color: var(--accent);
+}
+
+.chip-check input:disabled + .chip {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
 .rules-error {
   margin-top: 10px;
   padding: 8px;
@@ -1288,6 +1365,22 @@ body {
     width: 52px;
     padding: 4px 6px;
     font-size: 0.8rem;
+  }
+
+  .rule-group-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 4px;
+  }
+
+  .chip-check .chip {
+    padding: 3px 8px;
+    font-size: 0.72rem;
+  }
+
+  .btn-tiny {
+    padding: 2px 6px;
+    font-size: 0.65rem;
   }
 
   .room-code {

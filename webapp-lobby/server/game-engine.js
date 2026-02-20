@@ -525,38 +525,37 @@ class GameEngine {
 
   _createDeck() {
     const deck = [];
-    const useSpecials = this.rules.specialCards !== false; // default: enabled
-    // Distribution: ~60% numbers, ~25% operators, ~5% parens, ~7% special (if enabled), ~3% advanced ops
+    // Allowed operators & specials from rules (with fallback)
+    const allowedOps = (Array.isArray(this.rules.allowedOperators) && this.rules.allowedOperators.length > 0)
+      ? this.rules.allowedOperators
+      : [OperatorKind.Add, OperatorKind.Sub, OperatorKind.Mul, OperatorKind.Div];
+    const allowedSpecials = (Array.isArray(this.rules.allowedSpecials) && this.rules.allowedSpecials.length > 0)
+      ? this.rules.allowedSpecials
+      : [];
+    const useSpecials = allowedSpecials.length > 0;
+
     for (let i = 0; i < 100; i++) {
       const roll = Math.random();
       if (useSpecials && roll < 0.07) {
-        // Special cards: evenly distributed among types
-        const specials = [SpecialKind.Wild, SpecialKind.Reroll, SpecialKind.Double, SpecialKind.Peek, SpecialKind.Swap];
+        // Special cards — only from allowed list
         deck.push({
           id: this._nextCardId++,
           type: CardType.Special,
-          specialKind: specials[Math.floor(Math.random() * specials.length)],
+          specialKind: allowedSpecials[Math.floor(Math.random() * allowedSpecials.length)],
         });
       } else if (roll < (useSpecials ? 0.12 : 0.05)) {
-        // Parenthesis cards (pairs are added independently, balance is validated at score time)
+        // Parenthesis cards
         deck.push({
           id: this._nextCardId++,
           type: CardType.Paren,
           parenKind: Math.random() < 0.5 ? ParenKind.Open : ParenKind.Close,
         });
       } else if (roll < (useSpecials ? 0.37 : 0.32)) {
-        // Common ops: +, -, × (80%), rare ops: %, ^ (20%)
-        const r2 = Math.random();
-        let ops;
-        if (r2 < 0.8) {
-          ops = [OperatorKind.Add, OperatorKind.Sub, OperatorKind.Mul];
-        } else {
-          ops = [OperatorKind.Mod, OperatorKind.Pow];
-        }
+        // Operators — only from allowed list
         deck.push({
           id: this._nextCardId++,
           type: CardType.Operator,
-          operatorKind: ops[Math.floor(Math.random() * ops.length)],
+          operatorKind: allowedOps[Math.floor(Math.random() * allowedOps.length)],
         });
       } else {
         deck.push({

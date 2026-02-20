@@ -338,16 +338,48 @@
             <input type="number" id="rule-max-draw-turn" class="rule-input" min="0" max="20" value="0">
           </div>
           <div class="rule-item rule-item-checkbox">
-            <label for="rule-special-cards">
-              <input type="checkbox" id="rule-special-cards" checked>
-              Special Cards
-            </label>
-          </div>
-          <div class="rule-item rule-item-checkbox">
             <label for="rule-nearest-score" title="Allow scoring when close to target (reduced points based on distance)">
               <input type="checkbox" id="rule-nearest-score">
               Nearest Score
             </label>
+          </div>
+
+          <!-- Operator Selection -->
+          <div class="rule-item rule-item-full">
+            <div class="rule-group-header">
+              <span class="rule-group-label">Operators</span>
+              <div class="rule-group-presets">
+                <button type="button" class="btn btn-tiny" id="ops-preset-basic" title="+ − ×">Basic</button>
+                <button type="button" class="btn btn-tiny" id="ops-preset-standard" title="+ − × ÷">Standard</button>
+                <button type="button" class="btn btn-tiny" id="ops-preset-advanced" title="+ − × ÷ % ^">Advanced</button>
+              </div>
+            </div>
+            <div class="rule-checkbox-row" id="operator-checkboxes">
+              <label class="chip-check"><input type="checkbox" data-op="add" checked><span class="chip">+</span></label>
+              <label class="chip-check"><input type="checkbox" data-op="sub" checked><span class="chip">−</span></label>
+              <label class="chip-check"><input type="checkbox" data-op="mul" checked><span class="chip">×</span></label>
+              <label class="chip-check"><input type="checkbox" data-op="div" checked><span class="chip">÷</span></label>
+              <label class="chip-check"><input type="checkbox" data-op="mod"><span class="chip">%</span></label>
+              <label class="chip-check"><input type="checkbox" data-op="pow"><span class="chip">^</span></label>
+            </div>
+          </div>
+
+          <!-- Special Card Selection -->
+          <div class="rule-item rule-item-full">
+            <div class="rule-group-header">
+              <span class="rule-group-label">Special Cards</span>
+              <div class="rule-group-presets">
+                <button type="button" class="btn btn-tiny" id="specials-preset-none" title="No special cards">None</button>
+                <button type="button" class="btn btn-tiny" id="specials-preset-all" title="All special cards">All</button>
+              </div>
+            </div>
+            <div class="rule-checkbox-row" id="special-checkboxes">
+              <label class="chip-check"><input type="checkbox" data-special="wild" checked><span class="chip">★ Wild</span></label>
+              <label class="chip-check"><input type="checkbox" data-special="reroll" checked><span class="chip">🎯 Reroll</span></label>
+              <label class="chip-check"><input type="checkbox" data-special="double" checked><span class="chip">×2 Double</span></label>
+              <label class="chip-check"><input type="checkbox" data-special="peek" checked><span class="chip">👁 Peek</span></label>
+              <label class="chip-check"><input type="checkbox" data-special="swap" checked><span class="chip">🔄 Swap</span></label>
+            </div>
           </div>
         </div>
         <div id="rules-error" class="rules-error hidden"></div>

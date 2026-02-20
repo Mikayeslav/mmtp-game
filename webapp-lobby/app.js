@@ -49,7 +49,12 @@
   const ROOM_PREFIX = 'mmtp-lobby-';
   const TAB_ID_KEY = 'mmtp-tab-id';
   const ROOM_EXPIRY_MS = 30 * 60 * 1000; // 30 minutes
-  const DEFAULTS = { handSize: 7, timer: 20, targetMin: 1, targetMax: 10, winPoints: 5, botDifficulty: 'medium', nearestScore: false };
+  const DEFAULTS = {
+    handSize: 7, timer: 20, targetMin: 1, targetMax: 10, winPoints: 5,
+    botDifficulty: 'medium', nearestScore: false,
+    allowedOperators: ['add', 'sub', 'mul', 'div'],        // default: basic 4
+    allowedSpecials: ['wild', 'reroll', 'double', 'peek', 'swap'],  // default: all
+  };
 
   // ── Online multiplayer flag ──
   // When connected to WebSocket server: online mode for real multiplayer.
@@ -151,6 +156,8 @@
   const ruleMaxDrawTurn = $('rule-max-draw-turn');
   const ruleSpecialCards = $('rule-special-cards');
   const ruleNearestScore = $('rule-nearest-score');
+  const operatorCheckboxes = document.getElementById('operator-checkboxes');
+  const specialCheckboxes = document.getElementById('special-checkboxes');
   const rulesError = $('rules-error');
   const btnResetRules = $('btn-reset-rules');
   const presetSelect = $('rule-preset-select');
@@ -397,6 +404,18 @@
     o.rehandDrawCount = Math.max(RULES_CLAMP.rehandDrawCount[0], Math.min(RULES_CLAMP.rehandDrawCount[1], +o.rehandDrawCount ?? 5));
     o.minDrawPerClick = Math.max(RULES_CLAMP.minDrawPerClick[0], Math.min(RULES_CLAMP.minDrawPerClick[1], +o.minDrawPerClick || 1));
     o.maxDrawPerTurn = Math.max(RULES_CLAMP.maxDrawPerTurn[0], Math.min(RULES_CLAMP.maxDrawPerTurn[1], +o.maxDrawPerTurn || 0));
+    // Pass through array fields (validated, not clamped)
+    const validOps = ['add', 'sub', 'mul', 'div', 'mod', 'pow'];
+    const validSpecials = ['wild', 'reroll', 'double', 'peek', 'swap'];
+    o.allowedOperators = Array.isArray(o.allowedOperators)
+      ? o.allowedOperators.filter(op => validOps.includes(op))
+      : DEFAULTS.allowedOperators;
+    if (o.allowedOperators.length === 0) o.allowedOperators = ['add']; // at least one
+    o.allowedSpecials = Array.isArray(o.allowedSpecials)
+      ? o.allowedSpecials.filter(s => validSpecials.includes(s))
+      : DEFAULTS.allowedSpecials;
+    // Sync legacy specialCards boolean
+    o.specialCards = o.allowedSpecials.length > 0;
     return o;
   }
 
@@ -763,15 +782,52 @@
     if (ruleMin) ruleMin.value = r.targetMin;
     if (ruleMax) ruleMax.value = r.targetMax;
     if (ruleWin) ruleWin.value = r.winPoints;
-     if (ruleRehandDraw) ruleRehandDraw.value = r.rehandDrawCount ?? 5;
-     if (ruleMinDraw) ruleMinDraw.value = r.minDrawPerClick ?? 1;
-     if (ruleMaxDrawTurn) ruleMaxDrawTurn.value = r.maxDrawPerTurn ?? 0;
-     if (ruleSpecialCards) ruleSpecialCards.checked = r.specialCards !== false;
-     if (ruleNearestScore) ruleNearestScore.checked = !!r.nearestScore;
+    if (ruleRehandDraw) ruleRehandDraw.value = r.rehandDrawCount ?? 5;
+    if (ruleMinDraw) ruleMinDraw.value = r.minDrawPerClick ?? 1;
+    if (ruleMaxDrawTurn) ruleMaxDrawTurn.value = r.maxDrawPerTurn ?? 0;
+    if (ruleNearestScore) ruleNearestScore.checked = !!r.nearestScore;
+
+    // Operator checkboxes
+    const ops = r.allowedOperators || DEFAULTS.allowedOperators;
+    if (operatorCheckboxes) {
+      operatorCheckboxes.querySelectorAll('input[data-op]').forEach(cb => {
+        cb.checked = ops.includes(cb.dataset.op);
+      });
+    }
+
+    // Special card checkboxes
+    const specs = r.allowedSpecials || DEFAULTS.allowedSpecials;
+    if (specialCheckboxes) {
+      specialCheckboxes.querySelectorAll('input[data-special]').forEach(cb => {
+        cb.checked = specs.includes(cb.dataset.special);
+      });
+    }
+
+    // Legacy specialCards checkbox — sync with new allowedSpecials
+    if (ruleSpecialCards) ruleSpecialCards.checked = specs.length > 0;
+
     validateRules();
   }
 
   function readRulesFromInputs() {
+    // Read operator checkboxes
+    const allowedOperators = [];
+    if (operatorCheckboxes) {
+      operatorCheckboxes.querySelectorAll('input[data-op]:checked').forEach(cb => {
+        allowedOperators.push(cb.dataset.op);
+      });
+    }
+    // Require at least one operator
+    if (allowedOperators.length === 0) allowedOperators.push('add');
+
+    // Read special card checkboxes
+    const allowedSpecials = [];
+    if (specialCheckboxes) {
+      specialCheckboxes.querySelectorAll('input[data-special]:checked').forEach(cb => {
+        allowedSpecials.push(cb.dataset.special);
+      });
+    }
+
     state.rules = clampRules({
       handSize: ruleHand?.value,
       timer: ruleTimer?.value,
@@ -781,8 +837,10 @@
       rehandDrawCount: ruleRehandDraw?.value,
       minDrawPerClick: ruleMinDraw?.value,
       maxDrawPerTurn: ruleMaxDrawTurn?.value,
-      specialCards: ruleSpecialCards?.checked !== false,
+      specialCards: allowedSpecials.length > 0,
       nearestScore: !!ruleNearestScore?.checked,
+      allowedOperators,
+      allowedSpecials,
     });
     validateRules();
   }
@@ -1465,12 +1523,12 @@
 
   // ── Rule Presets System ──
   const BUILT_IN_PRESETS = [
-    { name: '🎮 Standard', rules: { handSize: 7, timer: 20, targetMin: 1, targetMax: 10, winPoints: 5, rehandDrawCount: 5, minDrawPerClick: 1, maxDrawPerTurn: 0, specialCards: true, nearestScore: false }, builtIn: true },
-    { name: '⚡ Speed', rules: { handSize: 5, timer: 15, targetMin: 1, targetMax: 10, winPoints: 3, rehandDrawCount: 3, minDrawPerClick: 1, maxDrawPerTurn: 0, specialCards: true, nearestScore: false }, builtIn: true },
-    { name: '🏔️ Marathon', rules: { handSize: 10, timer: 45, targetMin: 1, targetMax: 50, winPoints: 10, rehandDrawCount: 7, minDrawPerClick: 1, maxDrawPerTurn: 0, specialCards: true, nearestScore: false }, builtIn: true },
-    { name: '🧮 Pure Math', rules: { handSize: 7, timer: 30, targetMin: 1, targetMax: 20, winPoints: 5, rehandDrawCount: 5, minDrawPerClick: 1, maxDrawPerTurn: 0, specialCards: false, nearestScore: false }, builtIn: true },
-    { name: '🔥 Chaos', rules: { handSize: 12, timer: 25, targetMin: -50, targetMax: 50, winPoints: 7, rehandDrawCount: 8, minDrawPerClick: 2, maxDrawPerTurn: 5, specialCards: true, nearestScore: true }, builtIn: true },
-    { name: '👶 Beginner', rules: { handSize: 9, timer: 60, targetMin: 1, targetMax: 10, winPoints: 3, rehandDrawCount: 7, minDrawPerClick: 1, maxDrawPerTurn: 0, specialCards: false, nearestScore: true }, builtIn: true },
+    { name: '🎮 Standard', rules: { handSize: 7, timer: 20, targetMin: 1, targetMax: 10, winPoints: 5, rehandDrawCount: 5, minDrawPerClick: 1, maxDrawPerTurn: 0, specialCards: true, nearestScore: false, allowedOperators: ['add','sub','mul','div'], allowedSpecials: ['wild','reroll','double','peek','swap'] }, builtIn: true },
+    { name: '⚡ Speed', rules: { handSize: 5, timer: 15, targetMin: 1, targetMax: 10, winPoints: 3, rehandDrawCount: 3, minDrawPerClick: 1, maxDrawPerTurn: 0, specialCards: true, nearestScore: false, allowedOperators: ['add','sub','mul'], allowedSpecials: ['wild','reroll','double','peek','swap'] }, builtIn: true },
+    { name: '🏔️ Marathon', rules: { handSize: 10, timer: 45, targetMin: 1, targetMax: 50, winPoints: 10, rehandDrawCount: 7, minDrawPerClick: 1, maxDrawPerTurn: 0, specialCards: true, nearestScore: false, allowedOperators: ['add','sub','mul','div','mod','pow'], allowedSpecials: ['wild','reroll','double','peek','swap'] }, builtIn: true },
+    { name: '🧮 Pure Math', rules: { handSize: 7, timer: 30, targetMin: 1, targetMax: 20, winPoints: 5, rehandDrawCount: 5, minDrawPerClick: 1, maxDrawPerTurn: 0, specialCards: false, nearestScore: false, allowedOperators: ['add','sub','mul','div'], allowedSpecials: [] }, builtIn: true },
+    { name: '🔥 Chaos', rules: { handSize: 12, timer: 25, targetMin: -50, targetMax: 50, winPoints: 7, rehandDrawCount: 8, minDrawPerClick: 2, maxDrawPerTurn: 5, specialCards: true, nearestScore: true, allowedOperators: ['add','sub','mul','div','mod','pow'], allowedSpecials: ['wild','reroll','double','peek','swap'] }, builtIn: true },
+    { name: '👶 Beginner', rules: { handSize: 9, timer: 60, targetMin: 1, targetMax: 10, winPoints: 3, rehandDrawCount: 7, minDrawPerClick: 1, maxDrawPerTurn: 0, specialCards: false, nearestScore: true, allowedOperators: ['add','sub','mul'], allowedSpecials: [] }, builtIn: true },
   ];
 
   function loadCustomPresets() {
@@ -2101,11 +2159,62 @@
     }
   });
   if (ruleSpecialCards) {
-    ruleSpecialCards.addEventListener('change', onRulesChange);
+    ruleSpecialCards.addEventListener('change', () => {
+      // Legacy toggle: check/uncheck all special checkboxes
+      if (specialCheckboxes) {
+        const allCbs = specialCheckboxes.querySelectorAll('input[data-special]');
+        allCbs.forEach(cb => { cb.checked = ruleSpecialCards.checked; });
+      }
+      onRulesChange();
+    });
   }
   if (ruleNearestScore) {
     ruleNearestScore.addEventListener('change', onRulesChange);
   }
+
+  // ── Operator & Special card checkboxes ──
+  if (operatorCheckboxes) {
+    operatorCheckboxes.addEventListener('change', onRulesChange);
+  }
+  if (specialCheckboxes) {
+    specialCheckboxes.addEventListener('change', () => {
+      // Sync legacy specialCards checkbox
+      if (ruleSpecialCards) {
+        const anyChecked = specialCheckboxes.querySelector('input[data-special]:checked') !== null;
+        ruleSpecialCards.checked = anyChecked;
+      }
+      onRulesChange();
+    });
+  }
+
+  // Operator presets
+  const opsPresetBasic = $('ops-preset-basic');
+  const opsPresetStandard = $('ops-preset-standard');
+  const opsPresetAdvanced = $('ops-preset-advanced');
+  function setOperatorPreset(ops) {
+    if (!operatorCheckboxes) return;
+    operatorCheckboxes.querySelectorAll('input[data-op]').forEach(cb => {
+      cb.checked = ops.includes(cb.dataset.op);
+    });
+    onRulesChange();
+  }
+  if (opsPresetBasic) opsPresetBasic.addEventListener('click', () => setOperatorPreset(['add', 'sub', 'mul']));
+  if (opsPresetStandard) opsPresetStandard.addEventListener('click', () => setOperatorPreset(['add', 'sub', 'mul', 'div']));
+  if (opsPresetAdvanced) opsPresetAdvanced.addEventListener('click', () => setOperatorPreset(['add', 'sub', 'mul', 'div', 'mod', 'pow']));
+
+  // Special card presets
+  const specialsPresetNone = $('specials-preset-none');
+  const specialsPresetAll = $('specials-preset-all');
+  function setSpecialPreset(specs) {
+    if (!specialCheckboxes) return;
+    specialCheckboxes.querySelectorAll('input[data-special]').forEach(cb => {
+      cb.checked = specs.includes(cb.dataset.special);
+    });
+    if (ruleSpecialCards) ruleSpecialCards.checked = specs.length > 0;
+    onRulesChange();
+  }
+  if (specialsPresetNone) specialsPresetNone.addEventListener('click', () => setSpecialPreset([]));
+  if (specialsPresetAll) specialsPresetAll.addEventListener('click', () => setSpecialPreset(['wild', 'reroll', 'double', 'peek', 'swap']));
 
   if (playerNameInput) {
     playerNameInput.addEventListener('input', () => {

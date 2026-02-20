@@ -555,27 +555,26 @@
   // Initialize deck
   function createDeck() {
     const deck = [];
-    const useSpecials = gameRules.specialCards !== false;
-    // Distribution: ~60% numbers, ~25% operators, ~5% parens, ~7% special (if enabled), ~3% advanced ops
+    // Allowed operators & specials from rules (with fallback)
+    const allowedOps = (gameRules.allowedOperators && gameRules.allowedOperators.length > 0)
+      ? gameRules.allowedOperators
+      : [OperatorKind.Add, OperatorKind.Sub, OperatorKind.Mul, OperatorKind.Div];
+    const allowedSpecials = (gameRules.allowedSpecials && gameRules.allowedSpecials.length > 0)
+      ? gameRules.allowedSpecials
+      : [];
+    const useSpecials = allowedSpecials.length > 0;
+
     for (let i = 0; i < 100; i++) {
       const roll = Math.random();
       if (useSpecials && roll < 0.07) {
-        // Special cards
-        const specials = [SpecialKind.Wild, SpecialKind.Reroll, SpecialKind.Double, SpecialKind.Peek, SpecialKind.Swap];
-        deck.push({ type: CardType.Special, specialKind: specials[Math.floor(Math.random() * specials.length)] });
+        // Special cards — only from allowed list
+        deck.push({ type: CardType.Special, specialKind: allowedSpecials[Math.floor(Math.random() * allowedSpecials.length)] });
       } else if (roll < (useSpecials ? 0.12 : 0.05)) {
         // Parenthesis cards
         deck.push({ type: CardType.Paren, parenKind: Math.random() < 0.5 ? ParenKind.Open : ParenKind.Close });
       } else if (roll < (useSpecials ? 0.37 : 0.32)) {
-        // Common ops: +, -, × (80%), rare ops: %, ^ (20%)
-        const r2 = Math.random();
-        let ops;
-        if (r2 < 0.8) {
-          ops = [OperatorKind.Add, OperatorKind.Sub, OperatorKind.Mul];
-        } else {
-          ops = [OperatorKind.Mod, OperatorKind.Pow];
-        }
-        deck.push({ type: CardType.Operator, operatorKind: ops[Math.floor(Math.random() * ops.length)] });
+        // Operators — only from allowed list
+        deck.push({ type: CardType.Operator, operatorKind: allowedOps[Math.floor(Math.random() * allowedOps.length)] });
       } else {
         deck.push({ type: CardType.Number, value: Math.floor(Math.random() * 10) });
       }
