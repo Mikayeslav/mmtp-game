@@ -1,5 +1,54 @@
 # MMtp — Update Notes
 
+## Session 24 (2026-02-20) — Cloud Deployment Setup & UI Conformity (v0.9.9)
+
+### UI Conformity/Continuity Rework
+- **Lobby**: Moved Simulate P2/Bot controls from cheat panel into main lobby panel area (more accessible)
+- **Lobby + Gameplay**: Harmonized CSS variables, border-radius, shadows, font-family, and color scheme
+- **Gameplay CSS**: All hardcoded values converted to CSS custom properties (`var(--radius-md)`, `var(--shadow-sm)`, etc.)
+- **Consistent theming**: Both lobby and gameplay now share identical dark theme tokens
+
+### Cloud Deployment Preparation
+- **Server production mode**: Detects `NODE_ENV=production` to enable caching, skip localtunnel, trust proxy
+- **Git repo initialized**: Clean `.gitignore` excluding abandoned Unity folder, node_modules, IDE files
+- **Initial commit**: 29 files, ~19,600 lines of code
+- **`render.yaml`**: Updated blueprint for Render.com (free tier, Singapore region, health check on `/api/status`)
+- **`Dockerfile`**: Multi-stage Docker image for Fly.io/Railway/any container platform
+- **`fly.toml`**: Fly.io configuration with auto-scale and health checks
+- **`package.json`**: Updated with `engines: node >=18`, version bump
+- **Git + GitHub CLI installed**: Ready for `gh auth login` and push to GitHub
+
+### Deployment Steps (User Action Required)
+1. `gh auth login` (authenticate with GitHub)
+2. `gh repo create mmtp-game --public --source=. --push` (create + push)
+3. Go to https://dashboard.render.com → New → Blueprint → connect repo
+4. Render auto-reads `render.yaml` and deploys
+
+### Files Modified
+- `server/index.js` — Production mode detection, cache control, trust proxy, CORS config
+- `server/package.json` — Version 0.9.8, engines field, scripts
+- `render.yaml` — Updated buildCommand to `npm ci`, healthCheckPath to `/api/status`
+- `.gitignore` — New file (excludes Unity, node_modules, IDE, OS files)
+- `Dockerfile` — New file (Node 20 Alpine, health check, production env)
+- `fly.toml` — New file (Fly.io config)
+
+### Version
+- v0.9.9
+
+---
+
+## Session 23 (2026-02-20) — UI Conformity & Lobby Rework (v0.9.8)
+
+### Simulate P2/Bot Moved to Lobby
+- Bot controls relocated from cheat panel to main lobby panel (more discoverable)
+- Bot checkbox + difficulty dropdown now appear inline with game mode selection
+
+### UI Harmonization
+- Lobby and gameplay CSS variables aligned for consistent look
+- Borders, shadows, border-radius, font sizes all use shared tokens
+
+---
+
 ## Session 22 (2026-02-20) — Nearest Score Rule & Rule Balance (v0.9.8)
 
 ### Nearest Score Rule

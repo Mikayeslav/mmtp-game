@@ -1,8 +1,8 @@
 # MMtp — Implementation Roadmap & Status
 
-**Current Status**: Full 2D web game (lobby + gameplay) with WebSocket multiplayer server + public tunnel support + QR code sharing + player profile sync + 5 special cards (Wild, Reroll, Double, Peek, Swap) with host toggle + parentheses support for expression grouping + custom rule presets (save/load/delete/export/import) + achievements system (10+ achievements) + advanced operators (Modulo %, Power ^) + in-game expression history + in-game chat (multiplayer) + round counter HUD + **Nearest Score rule** (partial points for close-but-not-exact expressions). Shared UMD expression evaluator (single source of truth for client + server). Default timer reduced to 20s, target range to 1–10 for faster, more feasible gameplay. Bot AI (3 difficulties) with deep lookahead (5-card combos), special card strategy, nearest-score awareness, stats/progression, sound effects, keyboard shortcuts, responsive UI, invite links, cross-network play all complete. Unity version abandoned.  
+**Current Status**: Full 2D web game (lobby + gameplay) with WebSocket multiplayer server + public tunnel support + QR code sharing + player profile sync + 5 special cards (Wild, Reroll, Double, Peek, Swap) with host toggle + parentheses support for expression grouping + custom rule presets (save/load/delete/export/import) + achievements system (10+ achievements) + advanced operators (Modulo %, Power ^) + in-game expression history + in-game chat (multiplayer) + round counter HUD + **Nearest Score rule** (partial points for close-but-not-exact expressions). Shared UMD expression evaluator (single source of truth for client + server). Default timer reduced to 20s, target range to 1–10 for faster, more feasible gameplay. Bot AI (3 difficulties) with deep lookahead (5-card combos), special card strategy, nearest-score awareness, stats/progression, sound effects, keyboard shortcuts, responsive UI, invite links, cross-network play all complete. **Cloud deployment ready** (Render blueprint, Dockerfile, Fly.io config). Unity version abandoned.  
 **Last Updated**: 2026-02-20  
-**Version**: v0.9.8
+**Version**: v0.9.9
 
 ---
 
@@ -99,7 +99,7 @@
 - ✅ Invite link generation (copy-to-clipboard, `?join=XXXX` auto-join)
 - ✅ QR code generation for invite links (client-side SVG, zero deps)
 - ✅ Tunnel password auto-detection for visitors
-- ⏳ Cloud deployment (permanent hosting on Render/Fly.io/Railway)
+- ⏳ Cloud deployment (permanent hosting on Render/Fly.io/Railway) — **config ready, needs push + connect**
 
 ---
 
@@ -242,7 +242,7 @@
 | Invite links | ✅ Complete | Copy-to-clipboard, `?join=XXXX` auto-join |
 | QR code sharing | ✅ Complete | Client-side SVG QR code, zero dependencies |
 | Profile sync | ✅ Complete | 6-char codes, server-persisted, cross-device |
-| Cloud deployment | ⏳ Not Started | Permanent hosting (Render/Fly.io) |
+| Cloud deployment | ⏳ Config Ready | render.yaml + Dockerfile + fly.toml ready; needs GitHub push + Render connect |
 | 4-player support | ⏳ Not Started | UI and logic needed |
 
 ### UI/UX
@@ -313,9 +313,9 @@
 3. **Localtunnel**: Free tier has rate limits; tunnel may close and auto-retry
 
 ### Technical Debt
-1. **Code Organization**: Some functions could be better modularized
-2. **Error Handling**: Could be more comprehensive in edge cases
-3. **Testing**: No automated tests
+1. **Code Organization**: Some functions could be better modularized (planned next)
+2. **Error Handling**: Could be more comprehensive in edge cases (planned next)
+3. **Testing**: No automated tests (planned next)
 4. ~~**Expression evaluator**: Duplicated between client and server~~ — ✅ Fixed (UMD shared module)
 
 ---
@@ -323,7 +323,7 @@
 ## Next Steps (Priority Order)
 
 ### Immediate (High Priority)
-1. **Cloud Deployment**: Deploy to Render/Fly.io for permanent public URL (tunnel works for now)
+1. **Cloud Deployment**: Push to GitHub + connect Render (config files ready: `render.yaml`, `Dockerfile`, `fly.toml`)
 
 ### Short-term (Medium Priority)
 1. **4-Player Support**: UI layout and turn management
@@ -369,4 +369,4 @@ webapp-lobby/
 ---
 
 **Last Updated**: 2026-02-20  
-**Version**: v0.9.8
+**Version**: v0.9.9
