@@ -2252,41 +2252,6 @@
 
   btnHost.addEventListener('click', onHost);
   btnJoin.addEventListener('click', onJoin);
-  const btnPasteCode = $('btn-paste-code');
-  if (btnPasteCode) {
-    btnPasteCode.addEventListener('click', async () => {
-      try {
-        // Try modern Clipboard API first (requires secure context)
-        if (navigator.clipboard && navigator.clipboard.readText) {
-          const text = await navigator.clipboard.readText();
-          const digits = (text || '').replace(/\D/g, '').slice(0, 4);
-          if (digits && joinRoomCodeInput) {
-            joinRoomCodeInput.value = digits;
-            joinRoomCodeInput.focus();
-            setStatus(`Pasted: ${digits}`, 'success');
-            return;
-          }
-        }
-      } catch (e) {
-        console.warn('[Lobby] Clipboard API failed, trying fallback:', e.message);
-      }
-      // Fallback: prompt user to paste
-      try {
-        const text = prompt('Paste your room code:');
-        if (text) {
-          const digits = text.replace(/\D/g, '').slice(0, 4);
-          if (digits && joinRoomCodeInput) {
-            joinRoomCodeInput.value = digits;
-            joinRoomCodeInput.focus();
-            setStatus(`Pasted: ${digits}`, 'success');
-          }
-        }
-      } catch (e2) {
-        console.warn('[Lobby] Paste fallback failed:', e2);
-        setStatus('Could not paste — type the code manually', 'warning');
-      }
-    });
-  }
   if (btnCopyRoom) {
     btnCopyRoom.addEventListener('click', function () {
       const code = state.roomCode;

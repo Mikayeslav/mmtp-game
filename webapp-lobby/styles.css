@@ -1410,10 +1410,6 @@ body {
   align-items: center;
 }
 
-#btn-paste-code {
-  padding: 6px 10px;
-  min-width: unset;
-}
 
 .join-input {
   flex: 1;
