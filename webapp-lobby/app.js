@@ -731,7 +731,24 @@
               const opponent = m.opponent || 'Player 2';
               const modeIcon = m.mode === 'online' ? '🌐' : m.mode === 'bot' ? '🤖' : '🏠';
               const myStats = m.stats?.p1;
-              const bestExpr = myStats?.bestExpression || '';
+              const bestExprObj = myStats?.bestExpression;
+              let bestExpr = '';
+              if (bestExprObj) {
+                const exprStr = typeof bestExprObj.expression === 'string'
+                  ? bestExprObj.expression
+                  : Array.isArray(bestExprObj.expression)
+                    ? bestExprObj.expression.map(c => {
+                        if (!c) return '?';
+                        if (c.type === 'number') return c.value;
+                        if (c.type === 'operator') {
+                          const syms = { add:'+', sub:'−', mul:'×', div:'÷', mod:'%', pow:'^' };
+                          return syms[c.operatorKind] || c.operatorKind || '?';
+                        }
+                        return '★';
+                      }).join(' ')
+                    : String(bestExprObj.expression);
+                bestExpr = bestExprObj.value != null ? `${exprStr} = ${bestExprObj.value}` : exprStr;
+              }
               const exprCount = myStats?.expressionsScored?.length || 0;
               const cardsPlayed = myStats?.cardsPlayed || 0;
               el.innerHTML = `<div class="history-row-main">`

@@ -821,14 +821,25 @@
         cardEl.classList.add('special-card', `special-${card.specialKind}`);
         const icon = document.createElement('div');
         icon.className = 'card-special-icon';
-        const iconMap = { wild: '★', reroll: '🎯', double: '×2', peek: '👁', swap: '🔄' };
+        const iconMap = { wild: '★', reroll: '🎯', double: '×2', peek: '👁', swap: '🔄', paren: '( )' };
         icon.textContent = iconMap[card.specialKind] || '?';
         content.appendChild(icon);
         const label = document.createElement('div');
         label.className = 'card-type';
-        const labelMap = { wild: 'Wild', reroll: 'Reroll', double: 'Double', peek: 'Peek', swap: 'Swap' };
+        const labelMap = { wild: 'Wild', reroll: 'Reroll', double: 'Double', peek: 'Peek', swap: 'Swap', paren: `Paren ×${card.parenUses ?? 2}` };
         label.textContent = labelMap[card.specialKind] || 'Special';
         content.appendChild(label);
+      } else if (card.type === CardType.Paren) {
+        // Parenthesis token on playfield
+        cardEl.classList.add('paren-card');
+        const sym = document.createElement('div');
+        sym.className = 'card-operator';
+        sym.textContent = card.parenKind === 'close' ? ')' : '(';
+        content.appendChild(sym);
+        const type = document.createElement('div');
+        type.className = 'card-type';
+        type.textContent = 'Paren';
+        content.appendChild(type);
       }
       
       cardEl.appendChild(content);
@@ -1391,6 +1402,10 @@
       useSpecialCard(playerId, index, card, 'peek');
     } else if (card.specialKind === SpecialKind.Swap) {
       useSpecialCard(playerId, index, card, 'swap');
+    } else if (card.specialKind === SpecialKind.Paren) {
+      // Paren cards are placed on playfield directly (server handles open/close logic)
+      gameState.selectedCard = { playerId, index, card };
+      placeCardOnPlayfield();
     }
   }
 
@@ -1609,6 +1624,33 @@
     
     const { playerId, index, card } = gameState.selectedCard;
     
+    // Paren special card: convert to open/close Paren token locally
+    if (card.type === CardType.Special && card.specialKind === SpecialKind.Paren) {
+      const uses = card.parenUses ?? 2;
+      const parenKind = uses === 2 ? 'open' : 'close';
+      const parenToken = { id: card.id, type: CardType.Paren, parenKind };
+      const placeCheck = clientCanPlaceCard(gameState.playfield, parenToken);
+      if (!placeCheck.ok) {
+        toast(placeCheck.reason, 'error');
+        return;
+      }
+      gameState.playfield.push(parenToken);
+      if (uses <= 1) {
+        // Both uses consumed — remove from hand
+        gameState.players[playerId - 1].hand.splice(index, 1);
+      } else {
+        // Decrement uses — card stays in hand
+        gameState.players[playerId - 1].hand[index] = { ...card, parenUses: uses - 1 };
+      }
+      gameState.selectedCard = null;
+      if (window.SFX) SFX.play('cardPlace');
+      renderHands();
+      renderPlayfield();
+      clearSelection();
+      writeGameState();
+      return;
+    }
+
     // Validate expression rules
     const placeCheck = clientCanPlaceCard(gameState.playfield, card);
     if (!placeCheck.ok) {
@@ -1663,6 +1705,9 @@
       
       if (card.type === CardType.Number) {
         cardEl.textContent = card.value;
+      } else if (card.type === CardType.Paren) {
+        cardEl.textContent = card.parenKind === 'close' ? ')' : '(';
+        cardEl.classList.add('paren-token');
       } else {
         const opSymbols = { add: '+', sub: '−', mul: '×', div: '÷', mod: '%', pow: '^' };
         cardEl.textContent = opSymbols[card.operatorKind] || '?';
@@ -1898,6 +1943,7 @@
     return expr.map(c => {
       if (c.type === CardType.Number) return c.value;
       if (c.type === CardType.Operator) return opSyms[c.operatorKind] || '?';
+      if (c.type === CardType.Paren) return c.parenKind === 'close' ? ')' : '(';
       if (c.type === CardType.Special) return '★';
       return '?';
     }).join(' ');
@@ -2966,9 +3012,7 @@
 
   function toggleSettings() {
     if (!settingsPanel) return;
-    const showing = settingsPanel.classList.toggle('hidden');
-    if (!showing) populateSettingsGrid(); // populate when opening (hidden was removed)
-    // Actually: toggle removes/adds 'hidden'. If hidden was removed, panel is visible.
+    settingsPanel.classList.toggle('hidden');
     if (!settingsPanel.classList.contains('hidden')) populateSettingsGrid();
   }
 
