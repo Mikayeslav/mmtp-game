@@ -1673,7 +1673,61 @@ body {
   text-align: center;
 }
 
-/* ── Collapsible Sections ── */
+/* ── Lobby Collapsible Details ── */
+.lobby-details {
+  margin-bottom: 12px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--bg-secondary);
+  overflow: hidden;
+}
+.lobby-details[open] {
+  border-color: var(--border);
+}
+.lobby-summary {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 14px;
+  cursor: pointer;
+  user-select: none;
+  list-style: none;
+  transition: background 0.15s;
+}
+.lobby-summary::-webkit-details-marker { display: none; }
+.lobby-summary::before {
+  content: '▶';
+  font-size: 0.6em;
+  transition: transform 0.2s;
+  display: inline-block;
+  width: 12px;
+  color: var(--text-secondary);
+}
+.lobby-details[open] > .lobby-summary::before {
+  transform: rotate(90deg);
+}
+.lobby-summary:hover {
+  background: rgba(255,255,255,0.03);
+}
+.lobby-summary h2, .lobby-summary h3 {
+  margin: 0;
+  font-size: 1rem;
+  flex: 1;
+}
+.lobby-details > *:not(summary) {
+  padding: 0 14px 12px;
+}
+/* Inside player-panel, details don't need extra border/bg (panel already provides it) */
+.player-panel > .lobby-details {
+  border: none;
+  background: transparent;
+  margin-bottom: 0;
+}
+.player-panel > .lobby-details > *:not(summary) {
+  padding: 0;
+}
+
+/* Keep old collapsible-section styles for backward compat */
 .collapsible-section {
   margin-bottom: 16px;
 }

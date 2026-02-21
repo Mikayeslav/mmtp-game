@@ -172,9 +172,6 @@
     <!-- Help trigger button (bottom-left) -->
     <button id="btn-help-trigger" type="button" class="btn-help-trigger" aria-label="Keyboard shortcuts (? key)" title="Help & Shortcuts (?)">?</button>
 
-    <!-- Leaderboard button (bottom-left, next to help) -->
-    <button id="btn-leaderboard-gp" type="button" class="btn-leaderboard-trigger" aria-label="Leaderboard" title="Leaderboard">📊</button>
-
     <!-- Cheat Panel Toggle Button -->
     <button id="btn-cheat-panel" type="button" class="btn-cheat-toggle hidden" aria-label="Open cheat panel" title="Cheat Panel (Ctrl+Shift+C)">🧪</button>
 
@@ -577,51 +574,9 @@
       <div class="modal-backdrop" aria-label="Close modal"></div>
     </div>
   </div>
-  <!-- Leaderboard Modal (gameplay) -->
-  <div id="leaderboard-modal-gp" class="modal hidden" role="dialog" aria-modal="true">
-    <div class="modal-backdrop"></div>
-    <div class="modal-content leaderboard-modal-content">
-      <div class="modal-header">
-        <h2>📊 Leaderboard</h2>
-        <button id="btn-close-leaderboard-gp" class="btn-close">&times;</button>
-      </div>
-      <div class="modal-body">
-        <div class="leaderboard-tabs">
-          <button class="lb-tab active" data-sort="rating">Rating</button>
-          <button class="lb-tab" data-sort="wins">Wins</button>
-          <button class="lb-tab" data-sort="winrate">Win Rate</button>
-          <button class="lb-tab" data-sort="level">Level</button>
-        </div>
-        <div id="leaderboard-loading-gp" class="leaderboard-loading hidden">Loading...</div>
-        <div id="leaderboard-empty-gp" class="leaderboard-empty hidden">No players on the leaderboard yet.</div>
-        <div id="leaderboard-table-wrapper-gp" class="leaderboard-table-wrapper">
-          <table class="leaderboard-table">
-            <thead>
-              <tr>
-                <th class="lb-col-rank">#</th>
-                <th class="lb-col-player">Player</th>
-                <th class="lb-col-rating">Rating</th>
-                <th class="lb-col-level">Lv</th>
-                <th class="lb-col-record">W/L/D</th>
-                <th class="lb-col-winrate">WR%</th>
-                <th class="lb-col-streak">Streak</th>
-              </tr>
-            </thead>
-            <tbody id="leaderboard-body-gp"></tbody>
-          </table>
-        </div>
-        <div class="leaderboard-footer">
-          <button id="btn-lb-refresh-gp" class="btn btn-small btn-tool">🔄 Refresh</button>
-          <span id="lb-last-updated-gp" class="lb-meta"></span>
-        </div>
-      </div>
-    </div>
-  </div>
-
   <script src="https://cdn.socket.io/4.7.4/socket.io.min.js"></script>
   <script src="net-client.js"></script>
   <script src="sfx.js"></script>
-  <script src="profile.js"></script>
   <script src="server/expression.js"></script>
   <script src="bot-ai-v2.js"></script>
   <script src="gameplay.js"></script>

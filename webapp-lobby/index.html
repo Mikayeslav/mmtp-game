@@ -36,13 +36,14 @@
   <div id="menu-root" class="menu-root hidden">
     <!-- Player Panel (Top) -->
     <div class="player-panel">
-      <div class="player-panel-header">
-        <h2>Player Profile</h2>
-        <div id="connection-status" class="connection-status hidden">
-          <span class="status-dot"></span>
-          <span class="status-text">Connected</span>
-        </div>
-      </div>
+      <details class="lobby-details" open>
+        <summary class="lobby-summary">
+          <h2>Player Profile</h2>
+          <div id="connection-status" class="connection-status hidden">
+            <span class="status-dot"></span>
+            <span class="status-text">Connected</span>
+          </div>
+        </summary>
       <div class="player-info">
         <!-- Profile Card (avatar + identity + rank) -->
         <div id="profile-card-container" class="profile-card">
@@ -242,6 +243,7 @@
           </div>
         </div>
       </div>
+      </details>
     </div>
 
     <!-- Lobby Panel (Bottom) -->
@@ -252,8 +254,9 @@
       </div>
 
       <!-- Room Section (Players + Room Code + Bot) -->
+      <details class="lobby-details" open>
+        <summary class="lobby-summary"><h3>Room</h3></summary>
       <div class="room-section">
-        <h3>Room</h3>
         <div class="players-list">
           <div id="player-1-line" class="player-line">
             <span class="value">(empty)</span>
@@ -318,6 +321,7 @@
 
         <!-- Server URL Info (removed — invite link covers sharing) -->
       </div>
+      </details>
 
       <!-- Action Buttons (prominent, right after room) -->
       <div class="action-buttons">
@@ -328,12 +332,12 @@
       </div>
 
       <!-- Rules Section (collapsible) -->
-      <div class="rules-section collapsible-section">
-        <h3 class="section-toggle" id="rules-toggle">
-          <span class="toggle-icon">▼</span> Rules
+      <details class="lobby-details rules-section">
+        <summary class="lobby-summary">
+          <h3>Rules</h3>
           <button id="btn-reset-rules" class="btn btn-tiny btn-reset-inline hidden" title="Reset to defaults">↺ Reset</button>
-        </h3>
-        <div class="section-body" id="rules-body">
+        </summary>
+        <div class="rules-content" id="rules-body">
         <div class="rule-presets-bar">
           <select id="rule-preset-select" class="preset-select">
             <option value="">— Custom —</option>
@@ -422,8 +426,8 @@
           </div>
         </div>
         <div id="rules-error" class="rules-error hidden"></div>
-        </div><!-- /.section-body -->
-      </div>
+        </div><!-- /.rules-content -->
+      </details>
 
       <!-- Toolbar (compact utility buttons) -->
       <div class="lobby-toolbar">

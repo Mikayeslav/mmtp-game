@@ -2606,14 +2606,14 @@
       const result = await res.json();
       if (result.ok && result.code) {
         localStorage.setItem(STORAGE_PROFILE_CODE, result.code);
-        localStorage.setItem(STORAGE_PIN, result.pin);
+        localStorage.setItem(STORAGE_PIN, result.pin || chosenPin);
         // Also set the hidden input for backward compat
         const pci = $('profile-code-input');
         if (pci) pci.value = result.code;
         saveName(name);
         if (playerNameInput) playerNameInput.value = name;
         if (welcomeShowCode) welcomeShowCode.textContent = result.code;
-        if (welcomeShowPin) welcomeShowPin.textContent = result.pin;
+        if (welcomeShowPin) welcomeShowPin.textContent = result.pin || chosenPin;
         updateAccountStatusBar();
         updatePlayerPanel();
         showWelcomeStep(stepCreated);

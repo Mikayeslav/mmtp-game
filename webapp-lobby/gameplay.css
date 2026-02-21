@@ -1188,33 +1188,7 @@ body {
   transform: scale(1.1);
 }
 
-/* Leaderboard trigger button (bottom-left, next to help) */
-.btn-leaderboard-trigger {
-  position: fixed;
-  bottom: 20px;
-  left: 64px;
-  width: 36px;
-  height: 36px;
-  background: rgba(0,0,0,0.55);
-  border: 1px solid rgba(255,255,255,0.12);
-  border-radius: 50%;
-  color: rgba(255,255,255,0.7);
-  font-size: 16px;
-  cursor: pointer;
-  z-index: 50;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  transition: all 0.2s;
-}
-.btn-leaderboard-trigger:hover {
-  background: rgba(74, 158, 255, 0.2);
-  border-color: var(--accent);
-  color: #fff;
-  transform: scale(1.1);
-}
-
-/* ── Leaderboard styles (gameplay page) ── */
+/* ── Leaderboard styles (gameplay page — removed, lobby only now) ── */
 .leaderboard-modal-content { max-width: 640px; width: 95vw; }
 .leaderboard-tabs { display: flex; gap: 4px; margin-bottom: 12px; border-bottom: 1px solid var(--border); padding-bottom: 8px; }
 .lb-tab { padding: 6px 14px; border: 1px solid var(--border); border-radius: 6px; background: transparent; color: var(--text-secondary, #b0b0b8); font-size: 0.82rem; font-weight: 500; cursor: pointer; transition: all 0.15s; }
