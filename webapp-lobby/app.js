@@ -2541,8 +2541,8 @@
   // Create new account
   if (btnWelcomeCreate) btnWelcomeCreate.addEventListener('click', async () => {
     const name = (welcomeNameInput && welcomeNameInput.value.trim()) || '';
-    if (!name || name.length < 1) {
-      showWelcomeStatus(createStatus, 'Please enter a name', 'error');
+    if (!name || name.length < 2) {
+      showWelcomeStatus(createStatus, 'Name must be at least 2 characters', 'error');
       return;
     }
     const chosenPin = (welcomeNewPinInput && welcomeNewPinInput.value || '').trim();

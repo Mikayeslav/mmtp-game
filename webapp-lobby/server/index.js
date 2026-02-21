@@ -124,6 +124,10 @@ app.use(express.json()); // Parse JSON request bodies
 app.post('/api/profile/create', (req, res) => {
   try {
     const { pin: chosenPin, ...profileData } = req.body;
+    const name = (profileData.name || '').trim();
+    if (!name || name.length < 2) {
+      return res.json({ ok: false, error: 'Name must be at least 2 characters' });
+    }
     const result = profiles.create(profileData, chosenPin);
     res.json({ ok: true, code: result.code, pin: result.pin });
   } catch (e) {
