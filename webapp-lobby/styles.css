@@ -1411,9 +1411,7 @@ body {
 }
 
 #btn-paste-code {
-  padding: 6px 8px;
-  font-size: 1rem;
-  line-height: 1;
+  padding: 6px 10px;
   min-width: unset;
 }
 
