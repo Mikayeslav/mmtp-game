@@ -260,13 +260,14 @@ class GameEngine {
     });
     // Note: cardsPlayed is already incremented in _handlePlace() when each card is placed
 
-    // Track best expression per player
+    // Track best expression per player (longest expression = most impressive)
     if (!this.matchStats[pid].bestExpression ||
-        result.value > this.matchStats[pid].bestExpression.value) {
+        pf.length > this.matchStats[pid].bestExpression.length) {
       this.matchStats[pid].bestExpression = {
         value: result.value,
         expression: this._exprToString(pf),
         target: this.target,
+        length: pf.length,
       };
     }
 

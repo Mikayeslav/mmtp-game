@@ -167,6 +167,9 @@ app.get('/api/profile/exists/:code', (req, res) => {
 // ── Admin / Dev Monitor API ──
 // ══════════════════════════════════════════════════════════════
 const ADMIN_KEY = process.env.ADMIN_KEY || 'mmtp-dev-2026';
+if (!process.env.ADMIN_KEY && process.env.NODE_ENV === 'production') {
+  console.warn('⚠️  WARNING: ADMIN_KEY env var not set! Using insecure default key. Set ADMIN_KEY for production.');
+}
 
 /** Simple admin auth middleware — checks ?key= query or X-Admin-Key header */
 function requireAdmin(req, res, next) {
@@ -512,10 +515,14 @@ io.on('connection', (socket) => {
     if (!room) return;
     const player = room.getPlayer(socket.id);
     if (!player) return;
+    // Sanitize both name and message to prevent XSS
+    const safeName = String(player.name || 'Unknown').replace(/[<>&"']/g, c =>
+      ({ '<': '&lt;', '>': '&gt;', '&': '&amp;', '"': '&quot;', "'": '&#39;' }[c]));
     broadcastToRoom('chat', {
       playerId: player.playerId,
-      name: player.name,
-      message: String(message).slice(0, 200),
+      name: safeName,
+      message: String(message).slice(0, 200).replace(/[<>&"']/g, c =>
+        ({ '<': '&lt;', '>': '&gt;', '&': '&amp;', '"': '&quot;', "'": '&#39;' }[c])),
       timestamp: Date.now(),
     }, room.code);
   });

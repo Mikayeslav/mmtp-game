@@ -119,19 +119,22 @@ class Room {
     this.createdAt = Date.now();
     this.gameStarted = false;
 
+    // Helper: coerce to number, falling back to def if NaN/null/undefined
+    const num = (v, def) => { const n = Number(v); return Number.isFinite(n) ? n : def; };
+
     this.rules = {
-      handSize: rules.handSize || 7,
-      turnTimerSec: rules.timer || rules.turnTimerSec || 20,
-      targetMin: rules.targetMin != null ? rules.targetMin : 1,
-      targetMax: rules.targetMax != null ? rules.targetMax : 10,
-      winPoints: rules.winPoints || 5,
+      handSize: num(rules.handSize, 7),
+      turnTimerSec: num(rules.timer, num(rules.turnTimerSec, 20)),
+      targetMin: num(rules.targetMin, 1),
+      targetMax: num(rules.targetMax, 10),
+      winPoints: num(rules.winPoints, 5),
       operatorPrecedence: rules.operatorPrecedence || 'left-to-right',
       allowNegative: rules.allowNegative || false,
       nearestScore: !!rules.nearestScore,
-      rehandDrawCount: rules.rehandDrawCount || 5,
-      minDrawPerClick: rules.minDrawPerClick || 1,
-      maxDrawPerTurn: rules.maxDrawPerTurn || 0,
-      handLimit: rules.handLimit || 12,
+      rehandDrawCount: num(rules.rehandDrawCount, 5),
+      minDrawPerClick: num(rules.minDrawPerClick, 1),
+      maxDrawPerTurn: num(rules.maxDrawPerTurn, 0),
+      handLimit: num(rules.handLimit, 12),
       allowBots: rules.allowBots || false,
       botDifficulty: rules.botDifficulty || 'medium',
       // QoL: operator & special card selection

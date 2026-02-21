@@ -40,7 +40,6 @@
   const STORAGE_NAME = 'mmtp-player-name';
   const STORAGE_STATS = 'mmtp-player-stats';
   const STORAGE_BOT_STATS = 'mmtp-bot-stats'; // Persistent bot/P2 stats
-  const STORAGE_LAST_IP = 'mmtp-last-ip';
   const STORAGE_LAST_RULES = 'mmtp-last-rules'; // Save host rules
   const STORAGE_LOBBY_STATE = 'mmtp-lobby-state'; // Save full lobby state (player ready, etc.)
   const STORAGE_PROFILE_CODE = 'mmtp-profile-code'; // Server-synced profile code
@@ -218,16 +217,6 @@
     return ROOM_PREFIX + (code || state.roomCode || '');
   }
 
-  function isValidIP(ip) {
-    if (!ip || ip.trim() === '') return true; // Empty is valid (uses default)
-    const parts = ip.trim().split('.');
-    if (parts.length !== 4) return false;
-    return parts.every(part => {
-      const num = parseInt(part, 10);
-      return !isNaN(num) && num >= 0 && num <= 255;
-    });
-  }
-
   function generateUniqueRoomCode() {
     let attempts = 0;
     let code;
@@ -320,23 +309,6 @@
     }
   }
 
-  function loadLastIp() {
-    try {
-      return localStorage.getItem(STORAGE_LAST_IP) || '';
-    } catch (e) {
-      return '';
-    }
-  }
-
-  function saveLastIp(ip) {
-    try {
-      const t = (ip || '').trim();
-      if (t.length) localStorage.setItem(STORAGE_LAST_IP, t);
-    } catch (e) {
-      // Ignore storage errors for IP
-    }
-  }
-
   function loadStats() {
     try {
       const raw = localStorage.getItem(STORAGE_STATS);
@@ -419,16 +391,19 @@
     }
   }
 
+  // Helper: coerce to number, falling back to def if NaN/null/undefined
+  function num(v, def) { const n = Number(v); return Number.isFinite(n) ? n : def; }
+
   function clampRules(r) {
     const o = { ...r };
-    o.handSize = Math.max(RULES_CLAMP.handSize[0], Math.min(RULES_CLAMP.handSize[1], +o.handSize || DEFAULTS.handSize));
-    o.timer = Math.max(RULES_CLAMP.timer[0], Math.min(RULES_CLAMP.timer[1], +o.timer || DEFAULTS.timer));
-    o.targetMin = Math.max(RULES_CLAMP.targetMin[0], Math.min(RULES_CLAMP.targetMin[1], +o.targetMin ?? DEFAULTS.targetMin));
-    o.targetMax = Math.max(o.targetMin, Math.min(RULES_CLAMP.targetMax[1], +o.targetMax ?? DEFAULTS.targetMax));
-    o.winPoints = Math.max(RULES_CLAMP.winPoints[0], Math.min(RULES_CLAMP.winPoints[1], +o.winPoints || DEFAULTS.winPoints));
-    o.rehandDrawCount = Math.max(RULES_CLAMP.rehandDrawCount[0], Math.min(RULES_CLAMP.rehandDrawCount[1], +o.rehandDrawCount ?? 5));
-    o.minDrawPerClick = Math.max(RULES_CLAMP.minDrawPerClick[0], Math.min(RULES_CLAMP.minDrawPerClick[1], +o.minDrawPerClick || 1));
-    o.maxDrawPerTurn = Math.max(RULES_CLAMP.maxDrawPerTurn[0], Math.min(RULES_CLAMP.maxDrawPerTurn[1], +o.maxDrawPerTurn || 0));
+    o.handSize = Math.max(RULES_CLAMP.handSize[0], Math.min(RULES_CLAMP.handSize[1], num(o.handSize, DEFAULTS.handSize)));
+    o.timer = Math.max(RULES_CLAMP.timer[0], Math.min(RULES_CLAMP.timer[1], num(o.timer, DEFAULTS.timer)));
+    o.targetMin = Math.max(RULES_CLAMP.targetMin[0], Math.min(RULES_CLAMP.targetMin[1], num(o.targetMin, DEFAULTS.targetMin)));
+    o.targetMax = Math.max(o.targetMin, Math.min(RULES_CLAMP.targetMax[1], num(o.targetMax, DEFAULTS.targetMax)));
+    o.winPoints = Math.max(RULES_CLAMP.winPoints[0], Math.min(RULES_CLAMP.winPoints[1], num(o.winPoints, DEFAULTS.winPoints)));
+    o.rehandDrawCount = Math.max(RULES_CLAMP.rehandDrawCount[0], Math.min(RULES_CLAMP.rehandDrawCount[1], num(o.rehandDrawCount, 5)));
+    o.minDrawPerClick = Math.max(RULES_CLAMP.minDrawPerClick[0], Math.min(RULES_CLAMP.minDrawPerClick[1], num(o.minDrawPerClick, 1)));
+    o.maxDrawPerTurn = Math.max(RULES_CLAMP.maxDrawPerTurn[0], Math.min(RULES_CLAMP.maxDrawPerTurn[1], num(o.maxDrawPerTurn, 0)));
     // Pass through array fields (validated, not clamped)
     const validOps = ['add', 'sub', 'mul', 'div', 'mod', 'pow'];
     const validSpecials = ['wild', 'reroll', 'double', 'peek', 'swap'];

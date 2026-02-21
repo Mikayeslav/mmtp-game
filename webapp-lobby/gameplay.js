@@ -525,7 +525,7 @@
 
     const msgEl = document.createElement('div');
     msgEl.className = isSystem ? 'chat-msg system-msg' : 'chat-msg';
-    msgEl.innerHTML = `<span class="chat-sender ${isSystem ? 'system' : 'p' + playerId}">${name}:</span> <span class="chat-text">${escapeHtml(message)}</span>`;
+    msgEl.innerHTML = `<span class="chat-sender ${isSystem ? 'system' : 'p' + playerId}">${escapeHtml(name)}:</span> <span class="chat-text">${escapeHtml(message)}</span>`;
     chatMessages.appendChild(msgEl);
     chatMessages.scrollTop = chatMessages.scrollHeight;
 

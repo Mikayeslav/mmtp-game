@@ -37,7 +37,8 @@ function hasParens(tokens) {
  */
 function resolveParentheses(tokens, mode, opts) {
   let work = [...tokens];
-  let maxIter = 50; // safety limit for deeply nested parens
+  const MAX_PAREN_DEPTH = 100; // safety limit for deeply nested parens
+  let maxIter = MAX_PAREN_DEPTH;
 
   while (maxIter-- > 0) {
     // Find the LAST open paren (innermost)
@@ -83,6 +84,11 @@ function resolveParentheses(tokens, mode, opts) {
     // Replace the entire (sub-expression) with a single Number token
     const replacement = { type: CardType.Number, value: subResult.value };
     work = [...work.slice(0, openIdx), replacement, ...work.slice(closeIdx + 1)];
+  }
+
+  // Guard: if we exhausted iterations, the expression is too deeply nested
+  if (maxIter <= 0 && hasParens(work)) {
+    return { ok: false, value: 0, reason: 'Expression too deeply nested (exceeded iteration limit)' };
   }
 
   // Check for unmatched close parens

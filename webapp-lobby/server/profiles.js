@@ -34,13 +34,27 @@ function loadDB() {
   }
 }
 
-// Save to disk
+// Debounced async save to disk (avoids blocking event loop)
+let _saveTimer = null;
+let _saving = false;
+
 function saveDB() {
-  try {
-    fs.writeFileSync(DB_PATH, JSON.stringify(db, null, 2), 'utf8');
-  } catch (e) {
-    console.warn('[Profiles] Could not save profiles.json:', e.message);
+  // Debounce: coalesce rapid writes into one disk write after 500ms
+  if (_saveTimer) clearTimeout(_saveTimer);
+  _saveTimer = setTimeout(_flushDB, 500);
+}
+
+function _flushDB() {
+  if (_saving) { // Another write in flight — re-schedule
+    _saveTimer = setTimeout(_flushDB, 200);
+    return;
   }
+  _saving = true;
+  const data = JSON.stringify(db, null, 2);
+  fs.writeFile(DB_PATH, data, 'utf8', (err) => {
+    _saving = false;
+    if (err) console.warn('[Profiles] Could not save profiles.json:', err.message);
+  });
 }
 
 // Generate a unique 6-char code (A-Z, 0-9)
