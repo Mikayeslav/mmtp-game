@@ -43,11 +43,14 @@
       const info = await res.json();
 
       // Determine the best shareable URL:
-      // - If on a deployed domain (not localhost), always use window.location.origin
+      // - If server reports a deployedUrl (Render sets RENDER_EXTERNAL_URL), use that
+      // - If on a deployed domain (not localhost/LAN), always use window.location.origin
       // - If a tunnel URL is available, prefer that
       // - Otherwise fall back to LAN URL
       const isDeployed = !window.location.hostname.match(/^(localhost|127\.|192\.168\.|10\.)/);
-      if (isDeployed) {
+      if (info.deployedUrl) {
+        App.serverLanUrl = info.deployedUrl;
+      } else if (isDeployed) {
         App.serverLanUrl = window.location.origin;
       } else {
         App.serverLanUrl = info.tunnelUrl || info.url || window.location.origin;

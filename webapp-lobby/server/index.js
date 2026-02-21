@@ -92,14 +92,17 @@ app.get('/api/status', (req, res) => {
 app.get('/api/server-info', (req, res) => {
   const addresses = getLanIPs();
   const lanUrl = addresses.length ? `http://${addresses[0]}:${PORT}` : `http://localhost:${PORT}`;
+  // Render sets RENDER_EXTERNAL_URL automatically (e.g. https://mmtp-server.onrender.com)
+  const deployedUrl = process.env.RENDER_EXTERNAL_URL || null;
   res.json({
     port: PORT,
     addresses,
-    // Primary URL for sharing — prefer tunnel if available
-    url: tunnelUrl || lanUrl,
+    // Primary URL: deployed URL > tunnel > LAN
+    url: deployedUrl || tunnelUrl || lanUrl,
     lanUrl,
     tunnelUrl: tunnelUrl || null,
     tunnelPassword: tunnelPassword || null,
+    deployedUrl,
   });
 });
 
