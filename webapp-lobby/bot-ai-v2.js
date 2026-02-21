@@ -23,7 +23,7 @@
   'use strict';
 
   // Card type constants — imported from shared expression module (server/expression.js loaded via <script>)
-  const { CardType, OperatorKind, ParenKind, evaluate: sharedEvaluate } = window.MMtpExpression;
+  const { CardType, OperatorKind, evaluate: sharedEvaluate } = window.MMtpExpression;
 
   /** Check if a value matches the target (exact or within nearest-score threshold) */
   function botValueMatchesTarget(value, target, nearestScore) {
@@ -44,13 +44,11 @@
     const numbers = hand.filter(c => c.type === CardType.Number);
     const operators = hand.filter(c => c.type === CardType.Operator);
     const nearestScore = !!opts.nearestScore;
-    // Note: Bot doesn't use Paren cards strategically yet - they'll be discarded as low-priority
-    
     // If playfield exists, evaluate extensions
     if (playfield.length > 0) {
       const lastCard = playfield[playfield.length - 1];
-      const needsNumber = lastCard.type === CardType.Operator || (lastCard.type === CardType.Paren && lastCard.parenKind === ParenKind.Open);
-      const needsOperator = lastCard.type === CardType.Number || (lastCard.type === CardType.Paren && lastCard.parenKind === ParenKind.Close);
+      const needsNumber = lastCard.type === CardType.Operator;
+      const needsOperator = lastCard.type === CardType.Number;
       
       if (needsNumber) {
         // Can extend with a number

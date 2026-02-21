@@ -150,6 +150,7 @@
         'scoreMiss',
         'gameOver',
         'rematch',
+        'rematchRequested',
         'deckReshuffled',
         'targetRerolled',
         'doubleActivated',

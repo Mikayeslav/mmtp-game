@@ -4,7 +4,7 @@
  * Clients send actions, server validates and broadcasts results.
  */
 
-const { CardType, OperatorKind, SpecialKind, ParenKind, evaluate, canPlaceCard, canScore } = require('./expression');
+const { CardType, OperatorKind, SpecialKind, evaluate, canPlaceCard, canScore } = require('./expression');
 
 class GameEngine {
   /**
@@ -166,7 +166,7 @@ class GameEngine {
       return { ok: false, error: 'This special card can\'t be placed on the playfield. Use it from your hand.' };
     }
 
-    // Validate placement using shared canPlaceCard logic (supports parens)
+    // Validate placement using shared canPlaceCard logic
     const placeCheck = canPlaceCard(pf, card);
     if (!placeCheck.ok) return { ok: false, error: placeCheck.reason };
 
@@ -209,7 +209,7 @@ class GameEngine {
     const pf = this.playfields[pid];
     if (pf.length === 0) return { ok: false, error: 'Playfield is empty' };
 
-    // Validate scorability (end with number or ), balanced parens)
+    // Validate scorability
     const scoreCheck = canScore(pf);
     if (!scoreCheck.ok) return { ok: false, error: scoreCheck.reason };
 
@@ -364,15 +364,13 @@ class GameEngine {
 
   // ── Sort hand ──
   _handleSort(pid) {
-    const typeOrder = { [CardType.Number]: 0, [CardType.Operator]: 1, [CardType.Paren]: 2, [CardType.Special]: 3 };
+    const typeOrder = { [CardType.Number]: 0, [CardType.Operator]: 1, [CardType.Special]: 2 };
     const opOrder = { [OperatorKind.Add]: 0, [OperatorKind.Sub]: 1, [OperatorKind.Mul]: 2, [OperatorKind.Div]: 3, [OperatorKind.Mod]: 4, [OperatorKind.Pow]: 5 };
     const specOrder = { [SpecialKind.Wild]: 0, [SpecialKind.Reroll]: 1, [SpecialKind.Double]: 2, [SpecialKind.Peek]: 3, [SpecialKind.Swap]: 4 };
-    const parenOrder = { [ParenKind.Open]: 0, [ParenKind.Close]: 1 };
     this.hands[pid].sort((a, b) => {
       if (a.type !== b.type) return (typeOrder[a.type] ?? 99) - (typeOrder[b.type] ?? 99);
       if (a.type === CardType.Number) return (a.value ?? 0) - (b.value ?? 0);
       if (a.type === CardType.Operator) return (opOrder[a.operatorKind] ?? 99) - (opOrder[b.operatorKind] ?? 99);
-      if (a.type === CardType.Paren) return (parenOrder[a.parenKind] ?? 99) - (parenOrder[b.parenKind] ?? 99);
       return (specOrder[a.specialKind] ?? 99) - (specOrder[b.specialKind] ?? 99);
     });
     // Only send to the player who sorted
@@ -563,13 +561,6 @@ class GameEngine {
           type: CardType.Special,
           specialKind: allowedSpecials[Math.floor(Math.random() * allowedSpecials.length)],
         });
-      } else if (roll < (useSpecials ? 0.12 : 0.05)) {
-        // Parenthesis cards
-        deck.push({
-          id: this._nextCardId++,
-          type: CardType.Paren,
-          parenKind: Math.random() < 0.5 ? ParenKind.Open : ParenKind.Close,
-        });
       } else if (roll < (useSpecials ? 0.37 : 0.32)) {
         // Operators — only from allowed list
         deck.push({
@@ -616,7 +607,6 @@ class GameEngine {
   _exprToString(cards) {
     return cards.map(c => {
       if (c.type === CardType.Number) return String(c.value);
-      if (c.type === CardType.Paren) return c.parenKind === ParenKind.Open ? '(' : ')';
       const syms = { add:'+', sub:'−', mul:'×', div:'÷', mod:'%', pow:'^' };
       return syms[c.operatorKind] || '?';
     }).join(' ');
@@ -644,10 +634,25 @@ class GameEngine {
       turnNumber: this.turnNumber,
       timeLeft: this.turnTimer,
       deckCount: this.deck.length,
+      discardCount: this.discardPile.length,
       gameOver: this.gameOver,
       winner: this.winner,
       doubleNext: { ...this.doubleNext },
-      players: this.room.players.map(p => ({ playerId: p.playerId, name: p.name })),
+      players: this.room.players.map(p => ({
+        playerId: p.playerId, name: p.name,
+        avatar: p.avatar || '🃏', title: p.title || '',
+      })),
+      rules: {
+        handSize: this.rules.handSize,
+        handLimit: this.rules.handLimit,
+        turnTimerSec: this.rules.turnTimerSec,
+        winPoints: this.rules.winPoints,
+        targetMin: this.rules.targetMin,
+        targetMax: this.rules.targetMax,
+        nearestScore: this.rules.nearestScore,
+        maxDrawPerTurn: this.rules.maxDrawPerTurn,
+        minDrawPerClick: this.rules.minDrawPerClick,
+      },
     };
   }
 

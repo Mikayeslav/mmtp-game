@@ -20,7 +20,7 @@
   'use strict';
   if (!GP) { console.error('[gameplay-online] window.GP not found'); return; }
 
-  const { CardType, ParenKind } = window.MMtpExpression;
+  const { CardType } = window.MMtpExpression;
 
   // Alias shared state (objects are by-reference, always current)
   const gameState = GP.state;
@@ -175,6 +175,29 @@
     const deckCountDisplay = serverState.deckCount || 0;
     if (gameState.deck.length !== deckCountDisplay) {
       gameState.deck = new Array(deckCountDisplay).fill(null);
+    }
+
+    // ── Sync rules from server (hand limit, draw limits, etc.) ──
+    if (serverState.rules) {
+      const r = serverState.rules;
+      if (r.handLimit !== undefined) gameRules.handLimit = r.handLimit;
+      if (r.handSize !== undefined) gameRules.handSize = r.handSize;
+      if (r.turnTimerSec !== undefined) gameRules.timer = r.turnTimerSec;
+      if (r.winPoints !== undefined) gameRules.winPoints = r.winPoints;
+      if (r.targetMin !== undefined) gameRules.targetMin = r.targetMin;
+      if (r.targetMax !== undefined) gameRules.targetMax = r.targetMax;
+      if (r.nearestScore !== undefined) gameRules.nearestScore = r.nearestScore;
+      if (r.maxDrawPerTurn !== undefined) gameRules.maxDrawPerTurn = r.maxDrawPerTurn;
+      if (r.minDrawPerClick !== undefined) gameRules.minDrawPerClick = r.minDrawPerClick;
+    }
+
+    // ── Player avatars/titles ──
+    if (serverState.players) {
+      serverState.players.forEach(p => {
+        const slot = p.playerId === sPid ? 0 : 1;
+        if (p.avatar) gameState.players[slot].avatar = p.avatar;
+        if (p.title) gameState.players[slot].title = p.title;
+      });
     }
 
     // ── Update labels and re-render everything ──
@@ -378,13 +401,32 @@
       if (window.SFX) SFX.play('cardDraw');
     });
 
-    // ── rematch: server reset the game ──
+    // ── rematchRequested: one player wants a rematch, waiting for the other ──
+    MMtpNet.on('rematchRequested', (data) => {
+      const localPid = serverToLocal(data.playerId);
+      if (localPid === 1) {
+        // We requested it — show waiting message
+        GP.toast('Rematch requested — waiting for opponent…', 'info');
+        const btn = document.getElementById('btn-rematch');
+        if (btn) { btn.textContent = 'Waiting…'; btn.disabled = true; }
+      } else {
+        // Opponent requested it — prompt us
+        GP.toast(`${data.name || 'Opponent'} wants a rematch!`, 'info');
+        const btn = document.getElementById('btn-rematch');
+        if (btn) { btn.textContent = '✓ Accept Rematch'; btn.disabled = false; }
+      }
+    });
+
+    // ── rematch: both agreed, server reset the game ──
     MMtpNet.on('rematch', () => {
       GP.toast('Rematch starting!', 'info');
       // Hide game-over modal and reset flag so next endGame works
       const modal = document.getElementById('game-over-modal');
       if (modal) modal.classList.add('hidden');
       GP._endGameCalled = false;
+      // Reset rematch button
+      const btn = document.getElementById('btn-rematch');
+      if (btn) { btn.textContent = 'Rematch'; btn.disabled = false; }
       // Reset score zones
       const sz1 = document.getElementById('score-zone-p1');
       const sz2 = document.getElementById('score-zone-p2');
@@ -406,6 +448,11 @@
     MMtpNet.on('playerLeft', (data) => {
       GP.toast(`${data.name || 'Player'} left the game`, 'error');
       GP.appendSystemChatMessage(`${data.name || 'Player'} left the game`);
+      // If game is over and we're waiting for rematch, disable rematch button
+      if (gameState.gameOver) {
+        const btn = document.getElementById('btn-rematch');
+        if (btn) { btn.textContent = 'Opponent Left'; btn.disabled = true; }
+      }
     });
 
     // ════════════════════════════════════════════════════════════

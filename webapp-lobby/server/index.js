@@ -343,6 +343,17 @@ io.on('connection', (socket) => {
     if (room.isFull()) return cb({ ok: false, error: 'Room is full' });
     if (room.gameStarted) return cb({ ok: false, error: 'Game already in progress' });
 
+    // Prevent same IP from being both players (multi-tab self-play)
+    const joinerIP = socket.handshake.address;
+    const hostPlayer = room.players.find(p => p.isHost && p.connected);
+    if (hostPlayer) {
+      const hostSocket = io.sockets.sockets.get(hostPlayer.socketId);
+      if (hostSocket && hostSocket.handshake.address === joinerIP) {
+        console.log(`[ROOM] Warning: Same IP joining own room ${roomCode} (${joinerIP}) — allowing but flagged`);
+        // We allow it but send a warning (useful for testing, but discouraged)
+      }
+    }
+
     leaveCurrentRoom(socket);
     const player = room.addPlayer(socket.id, playerName, false, profile || {});
     if (!player) return cb({ ok: false, error: 'Could not join room' });
@@ -426,12 +437,40 @@ io.on('connection', (socket) => {
     if (!engine) return cb({ ok: false, error: 'No active game' });
     if (!engine.gameOver) return cb({ ok: false, error: 'Game not over yet' });
 
-    // Reset ready status
+    const player = room.getPlayer(socket.id);
+    if (!player) return cb({ ok: false, error: 'Player not found' });
+
+    // Track rematch requests per-room
+    if (!room._rematchRequests) room._rematchRequests = new Set();
+    room._rematchRequests.add(player.playerId);
+
+    // Check if all connected players have requested rematch
+    const connectedPlayers = room.players.filter(p => p.connected);
+    const allReady = connectedPlayers.every(p => room._rematchRequests.has(p.playerId));
+
+    if (connectedPlayers.length < 2) {
+      // Opponent left — can't rematch
+      room._rematchRequests.clear();
+      return cb({ ok: false, error: 'Opponent has left — cannot rematch' });
+    }
+
+    if (!allReady) {
+      // Notify opponent that this player wants to rematch
+      broadcastToRoom('rematchRequested', {
+        playerId: player.playerId,
+        name: player.name,
+        waiting: connectedPlayers.length - room._rematchRequests.size,
+      }, room.code);
+      return cb({ ok: true, waiting: true });
+    }
+
+    // Both players agreed — start rematch
+    room._rematchRequests.clear();
     room.players.forEach(p => p.ready = false);
     engine.rematch();
 
     broadcastToRoom('rematch', { roomCode: room.code }, room.code);
-    cb({ ok: true });
+    cb({ ok: true, started: true });
   });
 
   // ─── Lobby: Leave Room ───

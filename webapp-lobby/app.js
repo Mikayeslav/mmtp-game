@@ -1144,6 +1144,8 @@
     state.started = true;
     if (pressAnyKey) pressAnyKey.classList.add('hidden');
     if (menuRoot) menuRoot.classList.remove('hidden');
+    // Remember that we've passed the splash (skip next time)
+    sessionStorage.setItem('mmtp-splash-seen', '1');
     
     // Restore saved lobby state (player name, ready status, rules)
     try {
@@ -1176,6 +1178,11 @@
     renderLobby();
     // Focus name input for accessibility
     if (playerNameInput) playerNameInput.focus();
+  }
+
+  // Auto-skip splash if returning from gameplay or already seen this session
+  if (sessionStorage.getItem('mmtp-splash-seen') === '1') {
+    onPressAnyKey();
   }
 
   async function onHost() {
@@ -2108,14 +2115,34 @@
   if (btnPasteCode) {
     btnPasteCode.addEventListener('click', async () => {
       try {
-        const text = await navigator.clipboard.readText();
-        const digits = (text || '').replace(/\D/g, '').slice(0, 4);
-        if (digits && joinRoomCodeInput) {
-          joinRoomCodeInput.value = digits;
-          joinRoomCodeInput.focus();
+        // Try modern Clipboard API first (requires secure context)
+        if (navigator.clipboard && navigator.clipboard.readText) {
+          const text = await navigator.clipboard.readText();
+          const digits = (text || '').replace(/\D/g, '').slice(0, 4);
+          if (digits && joinRoomCodeInput) {
+            joinRoomCodeInput.value = digits;
+            joinRoomCodeInput.focus();
+            setStatus(`Pasted: ${digits}`, 'success');
+            return;
+          }
         }
       } catch (e) {
-        console.warn('[Lobby] Clipboard paste failed:', e);
+        console.warn('[Lobby] Clipboard API failed, trying fallback:', e.message);
+      }
+      // Fallback: prompt user to paste
+      try {
+        const text = prompt('Paste your room code:');
+        if (text) {
+          const digits = text.replace(/\D/g, '').slice(0, 4);
+          if (digits && joinRoomCodeInput) {
+            joinRoomCodeInput.value = digits;
+            joinRoomCodeInput.focus();
+            setStatus(`Pasted: ${digits}`, 'success');
+          }
+        }
+      } catch (e2) {
+        console.warn('[Lobby] Paste fallback failed:', e2);
+        setStatus('Could not paste — type the code manually', 'warning');
       }
     });
   }
@@ -2261,7 +2288,7 @@
     targetHighlight: localStorage.getItem('mmtp-target-highlight') !== 'false',
     autoSortHand: localStorage.getItem('mmtp-auto-sort-hand') === 'true',
     showExpressionHint: localStorage.getItem('mmtp-show-expression-hint') === 'true',
-    soundEffects: localStorage.getItem('mmtp-sound-effects') === 'true',
+    soundEffects: localStorage.getItem('mmtp-sound-effects') !== 'false', // default ON
   };
   
   // Apply UI size

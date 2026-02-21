@@ -158,9 +158,8 @@
   };
 
   // Card types — imported from shared expression module (server/expression.js loaded via <script>)
-  const { CardType, OperatorKind, SpecialKind, ParenKind, canPlaceCard: sharedCanPlaceCard,
-          canScore: sharedCanScore, evaluate: sharedEvaluate, validateParenBalance: sharedValidateParenBalance,
-          hasParens: sharedHasParens } = window.MMtpExpression;
+  const { CardType, OperatorKind, SpecialKind, canPlaceCard: sharedCanPlaceCard,
+          canScore: sharedCanScore, evaluate: sharedEvaluate } = window.MMtpExpression;
 
   // DOM elements
   const $ = (id) => document.getElementById(id);
@@ -404,7 +403,6 @@
     const syms = { add:'+', sub:'−', mul:'×', div:'÷', mod:'%', pow:'^' };
     const exprStr = expressionCards.map(c => {
       if (c.type === CardType.Number) return c.value;
-      if (c.type === CardType.Paren) return c.parenKind === ParenKind.Open ? '(' : ')';
       return syms[c.operatorKind] || '?';
     }).join(' ');
 
@@ -569,9 +567,6 @@
       if (useSpecials && roll < 0.07) {
         // Special cards — only from allowed list
         deck.push({ type: CardType.Special, specialKind: allowedSpecials[Math.floor(Math.random() * allowedSpecials.length)] });
-      } else if (roll < (useSpecials ? 0.12 : 0.05)) {
-        // Parenthesis cards
-        deck.push({ type: CardType.Paren, parenKind: Math.random() < 0.5 ? ParenKind.Open : ParenKind.Close });
       } else if (roll < (useSpecials ? 0.37 : 0.32)) {
         // Operators — only from allowed list
         deck.push({ type: CardType.Operator, operatorKind: allowedOps[Math.floor(Math.random() * allowedOps.length)] });
@@ -593,8 +588,6 @@
 
   // ── Placement validation — delegates to shared expression module ──
   const clientCanPlaceCard = sharedCanPlaceCard;
-  const clientValidateParenBalance = sharedValidateParenBalance;
-  const clientHasParens = sharedHasParens;
 
   function shuffleDeck() {
     // Shuffle the current deck
@@ -820,16 +813,6 @@
         type.textContent = (card.operatorKind === OperatorKind.Mod) ? 'Modulo' :
                            (card.operatorKind === OperatorKind.Pow) ? 'Power' : 'Operator';
         content.appendChild(type);
-      } else if (card.type === CardType.Paren) {
-        cardEl.classList.add('card-paren', `card-paren-${card.parenKind}`);
-        const symbol = document.createElement('div');
-        symbol.className = 'card-paren-symbol';
-        symbol.textContent = card.parenKind === ParenKind.Open ? '(' : ')';
-        content.appendChild(symbol);
-        const label = document.createElement('div');
-        label.className = 'card-type';
-        label.textContent = card.parenKind === ParenKind.Open ? 'Open' : 'Close';
-        content.appendChild(label);
       } else if (card.type === CardType.Special) {
         cardEl.classList.add('special-card', `special-${card.specialKind}`);
         const icon = document.createElement('div');
@@ -1581,11 +1564,25 @@
 
     // ── Online: send to server ──
     if (onlineGame && !bypassCheck) {
-      const { card } = gameState.selectedCard;
-      if (card && card.id !== undefined) {
-        netAction('placeCard', { cardId: card.id }).then(res => {
+      const { card, playerId, index } = gameState.selectedCard;
+      // Re-lookup card from current hand to avoid stale references
+      // (server state updates can rebuild the hand array)
+      let cardId = card?.id;
+      if (cardId === undefined && playerId && index !== undefined) {
+        const freshHand = gameState.players[playerId - 1]?.hand;
+        if (freshHand && freshHand[index]) {
+          cardId = freshHand[index].id;
+        }
+      }
+      if (cardId !== undefined) {
+        netAction('placeCard', { cardId }).then(res => {
           if (!res.ok) toast(res.error || 'Cannot place', 'warning');
         });
+        gameState.selectedCard = null;
+        gameState.selectedCards = [];
+        return;
+      } else {
+        toast('Card expired — select again', 'warning');
         gameState.selectedCard = null;
         gameState.selectedCards = [];
         return;
@@ -1594,7 +1591,7 @@
     
     const { playerId, index, card } = gameState.selectedCard;
     
-    // Validate expression rules (paren-aware)
+    // Validate expression rules
     const placeCheck = clientCanPlaceCard(gameState.playfield, card);
     if (!placeCheck.ok) {
       toast(placeCheck.reason, 'error');
@@ -1648,9 +1645,6 @@
       
       if (card.type === CardType.Number) {
         cardEl.textContent = card.value;
-      } else if (card.type === CardType.Paren) {
-        cardEl.textContent = card.parenKind === ParenKind.Open ? '(' : ')';
-        cardEl.classList.add('playfield-paren');
       } else {
         const opSymbols = { add: '+', sub: '−', mul: '×', div: '÷', mod: '%', pow: '^' };
         cardEl.textContent = opSymbols[card.operatorKind] || '?';
@@ -1885,7 +1879,6 @@
     const opSyms = { add:'+', sub:'−', mul:'×', div:'÷', mod:'%', pow:'^' };
     return expr.map(c => {
       if (c.type === CardType.Number) return c.value;
-      if (c.type === CardType.Paren) return c.parenKind === ParenKind.Open ? '(' : ')';
       if (c.type === CardType.Operator) return opSyms[c.operatorKind] || '?';
       if (c.type === CardType.Special) return '★';
       return '?';
@@ -1902,11 +1895,10 @@
     const tokens = gameState.playfield;
     dbg(`[evaluateExpression] Evaluating ${tokens.length} cards:`, tokens.map(c => {
       if (c.type === CardType.Number) return c.value;
-      if (c.type === CardType.Paren) return c.parenKind === ParenKind.Open ? '(' : ')';
       return 'OP';
     }));
 
-    // Extra scorability check (end with number or ), balanced parens)
+    // Extra scorability check
     const scoreCheck = sharedCanScore(tokens);
     if (!scoreCheck.ok) return { ok: false, value: 0, reason: scoreCheck.reason };
 
@@ -1960,7 +1952,6 @@
         const playerName = gameState.players[gameState.activePlayer - 1].name || `Player ${gameState.activePlayer}`;
         const exprStr = gameState.playfield.map(c => {
           if (c.type === CardType.Number) return c.value;
-          if (c.type === CardType.Paren) return c.parenKind === ParenKind.Open ? '(' : ')';
           const syms = { add:'+', sub:'−', mul:'×', div:'÷', mod:'%', pow:'^' };
           return syms[c.operatorKind] || '?';
         }).join(' ');
@@ -2742,7 +2733,6 @@
           // Local/bot mode: expression is an array of card objects
           exprText = pileEntry.expression.map((c) =>
             c.type === CardType.Number ? c.value :
-            c.type === CardType.Paren ? (c.parenKind === ParenKind.Open ? '(' : ')') :
               (c.operatorKind === OperatorKind.Add ? '+' :
                c.operatorKind === OperatorKind.Sub ? '−' :
                c.operatorKind === OperatorKind.Mul ? '×' :
@@ -3032,9 +3022,12 @@
   // Click timer to end turn
   if (timerFloating) {
     timerFloating.addEventListener('click', () => {
-      if (!gameState.gameOver && gameState.activePlayer === 1) {
-        endTurn();
+      if (gameState.gameOver) return;
+      if (!canMakeMove()) {
+        toast('Not your turn', 'warning');
+        return;
       }
+      endTurn();
     });
   }
   
@@ -3155,16 +3148,14 @@
     }
     const player = gameState.players[playerId - 1];
     if (!player?.hand) return;
-    // Numbers first (ascending), then operators, then parens, then specials
-    const typeOrder = { [CardType.Number]: 0, [CardType.Operator]: 1, [CardType.Paren]: 2, [CardType.Special]: 3 };
+    // Numbers first (ascending), then operators, then specials
+    const typeOrder = { [CardType.Number]: 0, [CardType.Operator]: 1, [CardType.Special]: 2 };
     const opOrder = { [OperatorKind.Add]: 0, [OperatorKind.Sub]: 1, [OperatorKind.Mul]: 2, [OperatorKind.Div]: 3, [OperatorKind.Mod]: 4, [OperatorKind.Pow]: 5 };
     const specOrder = { [SpecialKind.Wild]: 0, [SpecialKind.Reroll]: 1, [SpecialKind.Double]: 2, [SpecialKind.Peek]: 3, [SpecialKind.Swap]: 4 };
-    const parenOrder = { [ParenKind.Open]: 0, [ParenKind.Close]: 1 };
     player.hand.sort((a, b) => {
       if (a.type !== b.type) return (typeOrder[a.type] ?? 99) - (typeOrder[b.type] ?? 99);
       if (a.type === CardType.Number) return (a.value ?? 0) - (b.value ?? 0);
       if (a.type === CardType.Operator) return (opOrder[a.operatorKind] ?? 99) - (opOrder[b.operatorKind] ?? 99);
-      if (a.type === CardType.Paren) return (parenOrder[a.parenKind] ?? 99) - (parenOrder[b.parenKind] ?? 99);
       return (specOrder[a.specialKind] ?? 99) - (specOrder[b.specialKind] ?? 99);
     });
     renderHands();
@@ -3274,6 +3265,28 @@
 
   if (btnRematch) {
     btnRematch.addEventListener('click', () => {
+      if (onlineGame) {
+        // Online: send rematch request to server (need both players to agree)
+        btnRematch.disabled = true;
+        btnRematch.textContent = 'Requesting…';
+        netAction('', {}, 'rematch').catch(() => {});
+        // Use direct socket emit for rematch (it's a special event, not gameAction)
+        if (window.MMtpNet && window.MMtpNet.requestRematch) {
+          window.MMtpNet.requestRematch().then(res => {
+            if (res.ok && res.waiting) {
+              btnRematch.textContent = 'Waiting…';
+            } else if (res.ok && res.started) {
+              // Will be handled by 'rematch' event
+            } else if (!res.ok) {
+              toast(res.error || 'Cannot rematch', 'error');
+              btnRematch.textContent = 'Rematch';
+              btnRematch.disabled = false;
+            }
+          });
+        }
+        return;
+      }
+      // Local/bot: instant rematch
       if (gameOverModal) gameOverModal.classList.add('hidden');
       resetGameState();
       toast('Rematch started!', 'success');
@@ -3310,14 +3323,13 @@
     }
   });
   
-  // Also listen to localStorage changes (in case settings changed in another tab)
+  // Only listen to localStorage changes for non-gameplay settings
+  // (UI size should NOT sync across tabs during a game — it would affect opponents)
   window.addEventListener('storage', (e) => {
-    if (e.key === 'mmtp-ui-size') {
-      uiSize = e.newValue || 'normal';
-      applyUiSize();
-    } else if (e.key === 'mmtp-discard-amount' || e.key === 'mmtp-discard-opacity') {
+    if (e.key === 'mmtp-discard-amount' || e.key === 'mmtp-discard-opacity') {
       renderDiscardPile();
     }
+    // UI size intentionally NOT synced during gameplay
   });
   
   // Add UI size toggle button to gameplay HUD

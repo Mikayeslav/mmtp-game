@@ -7,7 +7,7 @@
   'use strict';
   if (!GP) { console.error('[gameplay-bot] window.GP not found'); return; }
 
-  const { CardType, OperatorKind, SpecialKind, ParenKind } = window.MMtpExpression;
+  const { CardType, OperatorKind, SpecialKind } = window.MMtpExpression;
 
   // ── Bot-specific state ──
   // Shared via GP.bot so tryScore/endTurn/endGame (in gameplay.js) can clear the watchdog

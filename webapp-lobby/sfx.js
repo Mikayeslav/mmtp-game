@@ -239,6 +239,14 @@ const SFX = (() => {
 })();
 
 // Auto-load setting from localStorage
+// Default to enabled if user hasn't explicitly set a preference
 if (typeof localStorage !== 'undefined') {
-  SFX.setEnabled(localStorage.getItem('mmtp-sound-effects') === 'true');
+  const pref = localStorage.getItem('mmtp-sound-effects');
+  if (pref === null) {
+    // First visit: enable by default
+    SFX.setEnabled(true);
+    localStorage.setItem('mmtp-sound-effects', 'true');
+  } else {
+    SFX.setEnabled(pref === 'true');
+  }
 }

@@ -448,33 +448,6 @@ body {
   color: #a29bfe;
 }
 
-/* Parenthesis Cards */
-.card.card-paren {
-  background: linear-gradient(135deg, #1a3a2a 0%, #0d4a3a 100%);
-  border-color: #00b894;
-}
-.card-paren .card-paren-symbol {
-  font-size: 2rem;
-  font-weight: bold;
-  color: #55efc4;
-  line-height: 1;
-}
-.card-paren .card-type {
-  color: #81ecb6;
-  font-size: 0.65rem;
-}
-.card.card-paren-open .card-paren-symbol {
-  text-shadow: 0 0 8px rgba(85, 239, 196, 0.5);
-}
-.card.card-paren-close .card-paren-symbol {
-  text-shadow: 0 0 8px rgba(85, 239, 196, 0.5);
-}
-
-/* Playfield paren token */
-.playfield-paren {
-  color: #55efc4 !important;
-  font-weight: bold;
-}
 
 /* Special Cards */
 .special-card {
@@ -2423,12 +2396,13 @@ body {
 .chat-panel {
   position: fixed;
   left: 0;
-  bottom: 60px;
+  bottom: 80px;
   z-index: 500;
   display: flex;
   flex-direction: row-reverse;
   align-items: flex-end;
   transition: transform 0.3s ease;
+  pointer-events: auto;
 }
 
 .chat-panel.collapsed .chat-content {
@@ -2436,25 +2410,27 @@ body {
 }
 
 .chat-toggle {
-  background: linear-gradient(135deg, #1565c0, #0d47a1);
-  border: 1px solid rgba(255,255,255,0.15);
+  background: rgba(21, 101, 192, 0.7);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+  border: 1px solid rgba(255,255,255,0.12);
   border-left: none;
   color: #fff;
-  width: 36px;
-  height: 44px;
+  width: 34px;
+  height: 40px;
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
   cursor: pointer;
   border-radius: 0 8px 8px 0;
-  font-size: 16px;
+  font-size: 15px;
   position: relative;
   transition: background 0.2s;
 }
 
 .chat-toggle:hover {
-  background: linear-gradient(135deg, #1976d2, #1565c0);
+  background: rgba(25, 118, 210, 0.85);
 }
 
 .chat-toggle-icon {
@@ -2476,12 +2452,14 @@ body {
   }
 
 .chat-content {
-  background: rgba(30, 30, 36, 0.95);
-  border: 1px solid rgba(255,255,255,0.12);
+  background: rgba(30, 30, 36, 0.82);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  border: 1px solid rgba(255,255,255,0.1);
   border-left: none;
   border-radius: 0 8px 8px 0;
-  width: 280px;
-  max-height: 300px;
+  width: 260px;
+  max-height: 280px;
   display: flex;
   flex-direction: column;
   box-shadow: 4px 0 20px rgba(0,0,0,0.4);
