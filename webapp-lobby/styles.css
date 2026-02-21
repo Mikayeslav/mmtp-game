@@ -1298,6 +1298,20 @@ body {
   opacity: 0.5;
   cursor: not-allowed;
 }
+.rules-readonly {
+  opacity: 0.6;
+  pointer-events: none;
+  position: relative;
+}
+.rules-readonly::after {
+  content: 'Only the host can change rules';
+  display: block;
+  text-align: center;
+  font-size: 0.75rem;
+  color: var(--text-secondary);
+  padding: 6px 0 0;
+  font-style: italic;
+}
 
 .rule-input:focus {
   outline: none;

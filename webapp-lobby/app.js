@@ -1062,6 +1062,16 @@
     if (simP2Control) simP2Control.classList.toggle('hidden', !(isHost && state.roomCode));
     if (botDifficultyRow) botDifficultyRow.classList.toggle('hidden', !state.simulateP2);
 
+    // Disable rules for guests (non-host in a room)
+    const guestInRoom = state.roomCode && !isHost;
+    const rulesBody = $('rules-body');
+    if (rulesBody) {
+      rulesBody.querySelectorAll('input, select, button').forEach(el => {
+        el.disabled = guestInRoom;
+      });
+      rulesBody.classList.toggle('rules-readonly', guestInRoom);
+    }
+
     if (readySummary) {
       if (!state.roomCode) {
         readySummary.textContent = '';
