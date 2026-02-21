@@ -104,7 +104,7 @@
     if (sec < 86400) return Math.floor(sec / 3600) + 'h ago';
     return Math.floor(sec / 86400) + 'd ago';
   }
-  const VERSION = '0.5.0'; // Game version
+  const VERSION = '1.0.0'; // Game version
   const pressAnyKey = $('press-any-key');
   const menuRoot = $('menu-root');
   const playerNameDisplay = $('player-name-display');
@@ -172,7 +172,6 @@
   const ruleRehandDraw = $('rule-rehand-draw');
   const ruleMinDraw = $('rule-min-draw');
   const ruleMaxDrawTurn = $('rule-max-draw-turn');
-  const ruleSpecialCards = $('rule-special-cards');
   const ruleNearestScore = $('rule-nearest-score');
   const operatorCheckboxes = document.getElementById('operator-checkboxes');
   const specialCheckboxes = document.getElementById('special-checkboxes');
@@ -721,18 +720,31 @@
           if (history.length > 0) {
             historySection.classList.remove('hidden');
             historyList.innerHTML = '';
-            const recent = history.slice(-5).reverse();
+            const recent = history.slice(-10).reverse();
             recent.forEach(m => {
               const el = document.createElement('div');
               el.className = 'match-history-item';
               const resultText = m.winner === 1 ? 'W' : m.winner === 2 ? 'L' : 'D';
               const resultClass = m.winner === 1 ? 'result-win' : m.winner === 2 ? 'result-loss' : 'result-draw';
-              const dur = m.duration ? `${Math.floor(m.duration / 60)}m${m.duration % 60}s` : '—';
+              const dur = m.duration ? `${Math.floor(m.duration / 60)}m ${m.duration % 60}s` : '—';
               const ago = m.timestamp ? timeAgo(m.timestamp) : '';
-              el.innerHTML = `<span class="history-result ${resultClass}">${resultText}</span>`
-                + `<span class="history-score">${m.scores?.p1 ?? 0}–${m.scores?.p2 ?? 0}</span>`
-                + `<span class="history-duration">${dur}</span>`
-                + `<span class="history-ago">${ago}</span>`;
+              const opponent = m.opponent || 'Player 2';
+              const modeIcon = m.mode === 'online' ? '🌐' : m.mode === 'bot' ? '🤖' : '🏠';
+              const myStats = m.stats?.p1;
+              const bestExpr = myStats?.bestExpression || '';
+              const exprCount = myStats?.expressionsScored?.length || 0;
+              const cardsPlayed = myStats?.cardsPlayed || 0;
+              el.innerHTML = `<div class="history-row-main">`
+                + `<span class="history-result ${resultClass}">${resultText}</span>`
+                + `<span class="history-info">`
+                  + `<span class="history-vs">${modeIcon} vs ${opponent}</span>`
+                  + `<span class="history-meta">${m.scores?.p1 ?? 0}–${m.scores?.p2 ?? 0} · ${dur} · ${ago}</span>`
+                + `</span>`
+                + `</div>`
+                + (bestExpr || exprCount ? `<div class="history-row-detail">`
+                  + (bestExpr ? `<span class="history-best" title="Best expression">★ ${bestExpr}</span>` : '')
+                  + `<span class="history-extra">${exprCount} expr · ${cardsPlayed} cards</span>`
+                  + `</div>` : '');
               historyList.appendChild(el);
             });
           } else {
@@ -870,9 +882,6 @@
       });
     }
 
-    // Legacy specialCards checkbox — sync with new allowedSpecials
-    if (ruleSpecialCards) ruleSpecialCards.checked = specs.length > 0;
-
     validateRules();
   }
 
@@ -943,13 +952,16 @@
     const me = players.find((p) => p.tabId === tabId) || (state.simulateP2 && players.length === 1 ? players[0] : null);
 
     const fmt = (p, i) => {
-      if (!p) return { name: '(empty)', ready: false, isYou: false, isHost: false };
+      if (!p) return { name: '(empty)', ready: false, isYou: false, isHost: false, avatar: '', title: '', rating: 0 };
       return {
         name: (p.name || '').trim() || 'Player ' + i,
         ready: p.ready,
         isYou: p.tabId === tabId,
         isHost: p.isHost || false,
         tabId: p.tabId,
+        avatar: p.avatar || '🃏',
+        title: p.title || '',
+        rating: p.rating || 1000,
       };
     };
     const d1 = fmt(p1, 1);
@@ -960,13 +972,24 @@
       const v = el.querySelector('.value');
       if (!v) return;
       if (!d || d.name === '(empty)') {
-        v.textContent = '(empty)';
+        v.innerHTML = '<span class="player-name-text">(empty)</span>';
         v.className = 'value';
         el.classList.remove('you', 'host');
         renderPlayerBadges(badgeEl, null);
         return;
       }
-      v.textContent = d.name + ' [' + (d.ready ? 'READY' : 'NOT READY') + ']';
+      const avatarHtml = d.avatar ? '<span class="player-avatar">' + d.avatar + '</span>' : '';
+      const readyTag = d.ready ? '<span class="ready-tag ready">READY</span>' : '<span class="ready-tag not-ready">NOT READY</span>';
+      const subtitle = [];
+      if (d.title) subtitle.push(d.title);
+      if (d.rating) subtitle.push('⭐ ' + d.rating);
+      const subtitleHtml = subtitle.length ? '<span class="player-subtitle">' + subtitle.join(' · ') + '</span>' : '';
+      v.innerHTML = avatarHtml +
+        '<span class="player-info-col">' +
+          '<span class="player-name-text">' + d.name + '</span>' +
+          subtitleHtml +
+        '</span>' +
+        readyTag;
       v.className = 'value ' + (d.ready ? 'ready' : 'not-ready');
       el.classList.toggle('you', d.isYou);
       el.classList.toggle('host', d.isHost);
@@ -1194,7 +1217,13 @@
     if (onlineMode && window.MMtpNet && MMtpNet.isOnline && !wantBot) {
       showLoading(true);
       setStatus('Creating room on server…', 'info');
-      const res = await MMtpNet.createRoom(name, state.rules);
+      const myProfile = {
+        avatar: localStorage.getItem(STORAGE_AVATAR) || '🃏',
+        title: localStorage.getItem(STORAGE_TITLE) || 'Newcomer',
+        rating: state.stats.rating || 1000,
+        level: state.stats.level || 1,
+      };
+      const res = await MMtpNet.createRoom(name, state.rules, myProfile);
       showLoading(false);
       if (res.ok) {
         state.mode = 'lobby';
@@ -1209,6 +1238,9 @@
           isHost: p.isHost,
           playerId: p.playerId,
           connected: p.connected,
+          avatar: p.avatar || '🃏',
+          title: p.title || '',
+          rating: p.rating || 1000,
         }));
         setStatus('Hosting · Room ' + res.roomCode + ' (online)', 'success');
         updatePlayerPanel();
@@ -1256,7 +1288,10 @@
     state.isHost = true;
     state.roomCode = code;
     state.roomCreatedAt = Date.now();
-    state.players = [{ tabId, name, ready: false, isHost: true }];
+    const myAvatar = localStorage.getItem(STORAGE_AVATAR) || '🃏';
+    const myTitle = localStorage.getItem(STORAGE_TITLE) || '';
+    const myRating = state.stats ? state.stats.rating : 1000;
+    state.players = [{ tabId, name, ready: false, isHost: true, avatar: myAvatar, title: myTitle, rating: myRating }];
     
     // Save lobby state (including simulateP2)
     saveLobbyState();
@@ -1324,7 +1359,13 @@
       showLoading(true);
       if (btnJoin) btnJoin.disabled = true;
       setStatus('Joining room on server…', 'info');
-      const res = await MMtpNet.joinRoom(code, name);
+      const joinProfile = {
+        avatar: localStorage.getItem(STORAGE_AVATAR) || '🃏',
+        title: localStorage.getItem(STORAGE_TITLE) || 'Newcomer',
+        rating: state.stats.rating || 1000,
+        level: state.stats.level || 1,
+      };
+      const res = await MMtpNet.joinRoom(code, name, joinProfile);
       showLoading(false);
       if (btnJoin) btnJoin.disabled = false;
       if (res.ok) {
@@ -1341,6 +1382,9 @@
           isHost: p.isHost,
           playerId: p.playerId,
           connected: p.connected,
+          avatar: p.avatar || '🃏',
+          title: p.title || '',
+          rating: p.rating || 1000,
         }));
         setStatus('Joined room ' + res.roomCode + ' (online)', 'success');
         updatePlayerPanel();
@@ -1392,7 +1436,10 @@
         console.warn('Failed to restore ready status:', e);
       }
       
-      state.players = [...players, { tabId, name, ready: readyStatus, isHost: false }];
+      const jAvatar = localStorage.getItem(STORAGE_AVATAR) || '🃏';
+      const jTitle = localStorage.getItem(STORAGE_TITLE) || '';
+      const jRating = state.stats ? state.stats.rating : 1000;
+      state.players = [...players, { tabId, name, ready: readyStatus, isHost: false, avatar: jAvatar, title: jTitle, rating: jRating }];
       writeRoom({
         roomCode: code,
         hostTabId: room.hostTabId,
@@ -2057,6 +2104,21 @@
 
   btnHost.addEventListener('click', onHost);
   btnJoin.addEventListener('click', onJoin);
+  const btnPasteCode = $('btn-paste-code');
+  if (btnPasteCode) {
+    btnPasteCode.addEventListener('click', async () => {
+      try {
+        const text = await navigator.clipboard.readText();
+        const digits = (text || '').replace(/\D/g, '').slice(0, 4);
+        if (digits && joinRoomCodeInput) {
+          joinRoomCodeInput.value = digits;
+          joinRoomCodeInput.focus();
+        }
+      } catch (e) {
+        console.warn('[Lobby] Clipboard paste failed:', e);
+      }
+    });
+  }
   if (btnCopyRoom) {
     btnCopyRoom.addEventListener('click', function () {
       const code = state.roomCode;
@@ -2129,6 +2191,41 @@
     btnToggleHintsInline.addEventListener('click', () => {
       const hintsPanel = $('lobby-hints-inline');
       if (hintsPanel) hintsPanel.classList.toggle('hidden');
+    });
+  }
+
+  // ── Collapsible Section Toggles ──
+  document.querySelectorAll('.section-toggle').forEach(toggle => {
+    const targetId = toggle.id.replace('-toggle', '-body');
+    const body = $(targetId);
+    if (!body) return;
+    // Initialize: if body has 'collapsed' class, set toggle state
+    if (body.classList.contains('collapsed')) {
+      toggle.classList.add('collapsed');
+    }
+    toggle.addEventListener('click', (e) => {
+      // Don't toggle if clicking a button inside the header (e.g. Reset)
+      if (e.target.closest('button') && e.target.closest('button') !== toggle) return;
+      const isCollapsed = body.classList.toggle('collapsed');
+      toggle.classList.toggle('collapsed', isCollapsed);
+    });
+  });
+
+  // ── Sign Out ──
+  const btnSignOut = $('btn-sign-out');
+  if (btnSignOut) {
+    btnSignOut.addEventListener('click', () => {
+      if (!confirm('Sign out? This will clear your local profile data.')) return;
+      // Clear all MMtp localStorage
+      const keysToRemove = [];
+      for (let i = 0; i < localStorage.length; i++) {
+        const key = localStorage.key(i);
+        if (key && key.startsWith('mmtp-')) keysToRemove.push(key);
+      }
+      keysToRemove.forEach(k => localStorage.removeItem(k));
+      sessionStorage.clear();
+      // Reload
+      window.location.reload();
     });
   }
 
@@ -2343,16 +2440,6 @@
       });
     }
   });
-  if (ruleSpecialCards) {
-    ruleSpecialCards.addEventListener('change', () => {
-      // Legacy toggle: check/uncheck all special checkboxes
-      if (specialCheckboxes) {
-        const allCbs = specialCheckboxes.querySelectorAll('input[data-special]');
-        allCbs.forEach(cb => { cb.checked = ruleSpecialCards.checked; });
-      }
-      onRulesChange();
-    });
-  }
   if (ruleNearestScore) {
     ruleNearestScore.addEventListener('change', onRulesChange);
   }
@@ -2362,14 +2449,7 @@
     operatorCheckboxes.addEventListener('change', onRulesChange);
   }
   if (specialCheckboxes) {
-    specialCheckboxes.addEventListener('change', () => {
-      // Sync legacy specialCards checkbox
-      if (ruleSpecialCards) {
-        const anyChecked = specialCheckboxes.querySelector('input[data-special]:checked') !== null;
-        ruleSpecialCards.checked = anyChecked;
-      }
-      onRulesChange();
-    });
+    specialCheckboxes.addEventListener('change', onRulesChange);
   }
 
   // Operator presets
@@ -2395,7 +2475,6 @@
     specialCheckboxes.querySelectorAll('input[data-special]').forEach(cb => {
       cb.checked = specs.includes(cb.dataset.special);
     });
-    if (ruleSpecialCards) ruleSpecialCards.checked = specs.length > 0;
     onRulesChange();
   }
   if (specialsPresetNone) specialsPresetNone.addEventListener('click', () => setSpecialPreset([]));

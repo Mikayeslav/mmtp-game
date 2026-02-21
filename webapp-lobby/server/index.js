@@ -134,6 +134,115 @@ app.get('/api/profile/exists/:code', (req, res) => {
   res.json({ ok: true, exists: profiles.exists(req.params.code) });
 });
 
+// ══════════════════════════════════════════════════════════════
+// ── Admin / Dev Monitor API ──
+// ══════════════════════════════════════════════════════════════
+const ADMIN_KEY = process.env.ADMIN_KEY || 'mmtp-dev-2026';
+
+/** Simple admin auth middleware — checks ?key= query or X-Admin-Key header */
+function requireAdmin(req, res, next) {
+  const key = req.query.key || req.headers['x-admin-key'];
+  if (key !== ADMIN_KEY) {
+    return res.status(403).json({ ok: false, error: 'Unauthorized' });
+  }
+  next();
+}
+
+// Serve admin panel HTML
+app.get('/admin', requireAdmin, (req, res) => {
+  res.sendFile(path.join(__dirname, 'admin.html'));
+});
+
+// Admin: server overview
+app.get('/api/admin/status', requireAdmin, (req, res) => {
+  res.json({
+    ok: true,
+    uptime: process.uptime(),
+    rooms: roomManager.listRoomsDetailed(),
+    activeGames: Array.from(activeGames.keys()),
+    connectedSockets: io.engine.clientsCount,
+    profileCount: profiles.listAll().length,
+    memory: process.memoryUsage(),
+    nodeVersion: process.version,
+    env: IS_PRODUCTION ? 'production' : 'development',
+  });
+});
+
+// Admin: list all profiles
+app.get('/api/admin/profiles', requireAdmin, (req, res) => {
+  res.json({ ok: true, profiles: profiles.listAll() });
+});
+
+// Admin: get single profile detail
+app.get('/api/admin/profiles/:code', requireAdmin, (req, res) => {
+  const result = profiles.load(req.params.code);
+  res.json(result);
+});
+
+// Admin: update profile stats
+app.post('/api/admin/profiles/:code/stats', requireAdmin, (req, res) => {
+  const code = req.params.code.toUpperCase();
+  const result = profiles.load(code);
+  if (!result.ok) return res.json(result);
+  const data = result.data;
+  data.stats = { ...data.stats, ...req.body };
+  const saveResult = profiles.save(code, data);
+  res.json(saveResult);
+});
+
+// Admin: delete profile
+app.delete('/api/admin/profiles/:code', requireAdmin, (req, res) => {
+  const result = profiles.remove(req.params.code);
+  res.json(result);
+});
+
+// Admin: list active rooms with detail
+app.get('/api/admin/rooms', requireAdmin, (req, res) => {
+  const rooms = roomManager.listRoomsDetailed();
+  const gamesInfo = [];
+  for (const [code, engine] of activeGames) {
+    gamesInfo.push({
+      code,
+      gameOver: engine.gameOver || false,
+      turnNumber: engine.turnNumber || 0,
+      activePlayer: engine.activePlayer || null,
+      target: engine.target || null,
+      scores: engine.scores || {},
+      winner: engine.winner || null,
+      deckRemaining: engine.deck ? engine.deck.length : 0,
+      elapsed: engine.startTime ? Math.floor((Date.now() - engine.startTime) / 1000) : 0,
+      players: engine.room?.players?.map(p => ({
+        playerId: p.playerId,
+        name: p.name,
+        handSize: engine.hands?.[p.playerId]?.length || 0,
+        score: engine.scores?.[p.playerId] || 0,
+      })) || [],
+    });
+  }
+  res.json({ ok: true, rooms, games: gamesInfo });
+});
+
+// Admin: force-end a game in a room
+app.post('/api/admin/rooms/:code/end', requireAdmin, (req, res) => {
+  const engine = activeGames.get(req.params.code);
+  if (!engine) return res.json({ ok: false, error: 'No active game in this room' });
+  try {
+    engine._endGame();
+    activeGames.delete(req.params.code);
+    res.json({ ok: true });
+  } catch (e) {
+    res.json({ ok: false, error: e.message });
+  }
+});
+
+// Admin: delete/close a room
+app.delete('/api/admin/rooms/:code', requireAdmin, (req, res) => {
+  const code = req.params.code;
+  activeGames.delete(code);
+  roomManager.removeRoom(code);
+  res.json({ ok: true });
+});
+
 // ── Socket.io ──
 const io = new Server(server, {
   cors: {
@@ -170,13 +279,13 @@ io.on('connection', (socket) => {
   console.log(`[WS] Connected: ${socket.id}`);
 
   // ─── Lobby: Create Room ───
-  socket.on('createRoom', ({ playerName, rules }, callback) => {
+  socket.on('createRoom', ({ playerName, rules, profile }, callback) => {
     const cb = typeof callback === 'function' ? callback : () => {};
     try {
       // Leave any current room
       leaveCurrentRoom(socket);
 
-      const room = roomManager.createRoom(socket.id, playerName, rules);
+      const room = roomManager.createRoom(socket.id, playerName, rules, profile);
       socket.join(`room:${room.code}`);
       console.log(`[ROOM] Created room ${room.code} by "${playerName}" (${socket.id})`);
 
@@ -194,7 +303,7 @@ io.on('connection', (socket) => {
   });
 
   // ─── Lobby: Join Room ───
-  socket.on('joinRoom', ({ roomCode, playerName, sessionToken }, callback) => {
+  socket.on('joinRoom', ({ roomCode, playerName, sessionToken, profile }, callback) => {
     const cb = typeof callback === 'function' ? callback : () => {};
     console.log(`[ROOM] Join attempt: code=${roomCode}, name="${playerName}", token=${sessionToken ? 'yes' : 'no'} (${socket.id})`);
     console.log(`[ROOM] Active rooms: [${roomManager.listRooms().map(r => r.code).join(', ')}]`);
@@ -232,7 +341,7 @@ io.on('connection', (socket) => {
     if (room.gameStarted) return cb({ ok: false, error: 'Game already in progress' });
 
     leaveCurrentRoom(socket);
-    const player = room.addPlayer(socket.id, playerName);
+    const player = room.addPlayer(socket.id, playerName, false, profile || {});
     if (!player) return cb({ ok: false, error: 'Could not join room' });
 
     socket.join(`room:${room.code}`);

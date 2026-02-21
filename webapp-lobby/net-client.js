@@ -170,10 +170,10 @@
   /**
    * Create (host) a room.
    */
-  function createRoom(playerName, rules) {
+  function createRoom(playerName, rules, profile) {
     return new Promise((resolve) => {
       if (!socket || !connected) return resolve({ ok: false, error: 'Not connected' });
-      socket.emit('createRoom', { playerName, rules }, (res) => {
+      socket.emit('createRoom', { playerName, rules, profile }, (res) => {
         if (res.ok) {
           sessionToken = res.sessionToken;
           currentRoomCode = res.roomCode;
@@ -188,10 +188,10 @@
   /**
    * Join a room by code.
    */
-  function joinRoom(roomCode, playerName) {
+  function joinRoom(roomCode, playerName, profile) {
     return new Promise((resolve) => {
       if (!socket || !connected) return resolve({ ok: false, error: 'Not connected' });
-      socket.emit('joinRoom', { roomCode, playerName }, (res) => {
+      socket.emit('joinRoom', { roomCode, playerName, profile }, (res) => {
         if (res.ok) {
           sessionToken = res.sessionToken;
           currentRoomCode = res.roomCode;

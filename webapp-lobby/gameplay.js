@@ -2327,6 +2327,9 @@
         timestamp: Date.now(),
         winner: winnerId,
         duration: Math.floor((gameState.matchStats.endTime - gameState.matchStats.startTime) / 1000),
+        mode: onlineGame ? 'online' : (gameState.players[1]?.name?.includes('Bot') ? 'bot' : 'local'),
+        opponent: (gameState.players[1]?.name || 'Player 2').substring(0, 20),
+        p1Name: (gameState.players[0]?.name || 'Player 1').substring(0, 20),
         scores: {
           p1: gameState.players[0].score,
           p2: gameState.players[1].score,
@@ -2654,12 +2657,19 @@
     if (handP2El) handP2El.classList.toggle('active', gameState.activePlayer === 2);
     
     // Update turn arrow position
+    // In online mode, hide arrow until first server state arrives (prevents flash)
     if (turnArrow) {
-      turnArrow.classList.remove('turn-arrow-up', 'turn-arrow-down');
-      if (gameState.activePlayer === 1) {
-        turnArrow.classList.add('turn-arrow-down');
+      if (onlineGame && !GP._receivedFirstState) {
+        turnArrow.classList.remove('turn-arrow-up', 'turn-arrow-down');
+        turnArrow.style.opacity = '0';
       } else {
-        turnArrow.classList.add('turn-arrow-up');
+        turnArrow.style.opacity = '';
+        turnArrow.classList.remove('turn-arrow-up', 'turn-arrow-down');
+        if (gameState.activePlayer === 1) {
+          turnArrow.classList.add('turn-arrow-down');
+        } else {
+          turnArrow.classList.add('turn-arrow-up');
+        }
       }
     }
 
@@ -3456,6 +3466,11 @@
     showAllDiscards:     { get() { return showAllDiscards; },     set(v) { showAllDiscards = v; } },
     turnNumber:          { get() { return turnNumber; },          set(v) { turnNumber = v; } },
     chatUnreadCount:     { get() { return chatUnreadCount; },     set(v) { chatUnreadCount = v; } },
+  });
+  GP._receivedFirstState = false; // Set true by gameplay-online.js after first applyServerState
+  Object.defineProperty(GP, '_endGameCalled', {
+    get() { return _endGameCalled; },
+    set(v) { _endGameCalled = v; },
   });
 
   // Core functions (exposed for extracted modules)

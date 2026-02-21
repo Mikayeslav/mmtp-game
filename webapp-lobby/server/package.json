@@ -1,6 +1,6 @@
 {
   "name": "mmtp-server",
-  "version": "0.9.8",
+  "version": "1.0.0",
   "description": "MMtp — 2D math expression card game multiplayer server",
   "main": "index.js",
   "scripts": {

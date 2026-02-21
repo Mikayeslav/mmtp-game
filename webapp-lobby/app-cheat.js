@@ -21,12 +21,40 @@
   const playerNameInput = App.dom.playerNameInput;
 
   // ══════════════════════════════════════════════════════════════
+  // ── Dev Mode Gate ──
+  // ══════════════════════════════════════════════════════════════
+  // Cheats button is hidden by default. It is shown when:
+  // 1. ?dev=1 or ?dev=mmtp-dev-2026 is in URL → sets localStorage flag
+  // 2. localStorage 'mmtp-dev-mode' is set
+  // 3. Ctrl+Shift+C keyboard shortcut (always works, but only opens panel)
+  const DEV_STORAGE_KEY = 'mmtp-dev-mode';
+  function checkDevMode() {
+    // URL param check
+    const params = new URLSearchParams(window.location.search);
+    const devParam = params.get('dev');
+    if (devParam === '1' || devParam === 'mmtp-dev-2026') {
+      localStorage.setItem(DEV_STORAGE_KEY, '1');
+      // Clean the URL
+      params.delete('dev');
+      const cleanUrl = window.location.pathname + (params.toString() ? '?' + params.toString() : '');
+      window.history.replaceState({}, '', cleanUrl);
+    }
+    return localStorage.getItem(DEV_STORAGE_KEY) === '1';
+  }
+  const isDevMode = checkDevMode();
+
+  // ══════════════════════════════════════════════════════════════
   // ── Cheat Panel (Stat Manipulation) ──
   // ══════════════════════════════════════════════════════════════
 
   const cheatPanel = $('cheat-panel');
   const btnCheatPanel = $('btn-cheat-panel');
   const btnCloseCheat = $('btn-close-cheat');
+
+  // Show cheat button only in dev mode
+  if (btnCheatPanel && isDevMode) {
+    btnCheatPanel.classList.remove('hidden');
+  }
 
   if (cheatPanel && btnCheatPanel) {
     btnCheatPanel.addEventListener('click', () => {
@@ -43,10 +71,12 @@
       });
     }
 
-    // Keyboard shortcut
+    // Keyboard shortcut — also enables dev mode if not already
     document.addEventListener('keydown', (e) => {
       if (e.ctrlKey && e.shiftKey && e.key === 'C') {
         e.preventDefault();
+        localStorage.setItem(DEV_STORAGE_KEY, '1');
+        if (btnCheatPanel) btnCheatPanel.classList.remove('hidden');
         cheatPanel.classList.toggle('hidden');
       }
     });
@@ -321,9 +351,9 @@
       const matchHistory = JSON.parse(localStorage.getItem('mmtp-match-history') || '[]');
       return {
         name,
-        avatar: localStorage.getItem(App.STORAGE_AVATAR || 'mmtp-player-avatar') || '🃏',
-        title: localStorage.getItem(App.STORAGE_TITLE || 'mmtp-player-title') || '',
-        bio: localStorage.getItem(App.STORAGE_BIO || 'mmtp-player-bio') || '',
+        avatar: localStorage.getItem(App.STORAGE_AVATAR) || '🃏',
+        title: localStorage.getItem(App.STORAGE_TITLE) || '',
+        bio: localStorage.getItem(App.STORAGE_BIO) || '',
         stats: { ...state.stats },
         matchHistory: matchHistory.slice(-20),
       };
@@ -337,13 +367,13 @@
       }
       // Apply avatar, title, bio
       if (data.avatar) {
-        localStorage.setItem(App.STORAGE_AVATAR || 'mmtp-player-avatar', data.avatar);
+        localStorage.setItem(App.STORAGE_AVATAR, data.avatar);
       }
       if (data.title) {
-        localStorage.setItem(App.STORAGE_TITLE || 'mmtp-player-title', data.title);
+        localStorage.setItem(App.STORAGE_TITLE, data.title);
       }
       if (typeof data.bio === 'string') {
-        localStorage.setItem(App.STORAGE_BIO || 'mmtp-player-bio', data.bio);
+        localStorage.setItem(App.STORAGE_BIO, data.bio);
         const bioInput = document.getElementById('profile-bio-input');
         if (bioInput) bioInput.value = data.bio;
       }
@@ -472,6 +502,43 @@
       profileCodeInput.addEventListener('input', () => {
         profileCodeInput.value = profileCodeInput.value.toUpperCase().replace(/[^A-Z0-9]/g, '');
       });
+    }
+
+    // ── Auto-save profile to cloud (debounced) ──
+    let _autoSaveTimer = null;
+    function scheduleAutoSave() {
+      const code = localStorage.getItem(STORAGE_PROFILE_CODE);
+      if (!code || code.length !== 6) return; // No profile code set
+      clearTimeout(_autoSaveTimer);
+      _autoSaveTimer = setTimeout(async () => {
+        try {
+          const data = gatherProfileData();
+          const res = await fetch('/api/profile/save', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ code, ...data }),
+          });
+          const result = await res.json();
+          if (result.ok) {
+            console.log('[Profile] Auto-saved to cloud');
+          }
+        } catch (e) {
+          // Silently fail — user can manually save later
+        }
+      }, 3000); // 3 second debounce
+    }
+
+    // Expose auto-save for external callers (e.g. gameplay returning to lobby)
+    App.scheduleProfileAutoSave = scheduleAutoSave;
+
+    // Auto-save when key profile data changes
+    if (playerNameInput) playerNameInput.addEventListener('blur', scheduleAutoSave);
+    const bioInput = document.getElementById('profile-bio-input');
+    if (bioInput) bioInput.addEventListener('blur', scheduleAutoSave);
+
+    // Auto-save on page load if profile code exists
+    if (savedCode) {
+      setTimeout(scheduleAutoSave, 5000); // Wait 5s after page load
     }
   }
 

@@ -20,6 +20,18 @@
 
     if (!cheatPanel || !btnCheatPanel) return;
 
+    // Dev mode gate: show cheat toggle only if dev mode enabled
+    // Checks: ?dev=1 or ?dev=mmtp-dev-2026 URL param, or localStorage flag
+    const params = new URLSearchParams(window.location.search);
+    const devParam = params.get('dev');
+    if (devParam === '1' || devParam === 'mmtp-dev-2026') {
+      localStorage.setItem('mmtp-dev-mode', '1');
+    }
+    const isDevMode = localStorage.getItem('mmtp-dev-mode') === '1';
+    if (isDevMode) {
+      btnCheatPanel.classList.remove('hidden');
+    }
+
     // Toggle button
     btnCheatPanel.addEventListener('click', () => {
       cheatPanel.classList.toggle('hidden');
@@ -33,10 +45,12 @@
       });
     }
 
-    // Keyboard shortcut
+    // Keyboard shortcut — also enables dev mode
     document.addEventListener('keydown', (e) => {
       if (e.ctrlKey && e.shiftKey && e.key === 'C') {
         e.preventDefault();
+        localStorage.setItem('mmtp-dev-mode', '1');
+        btnCheatPanel.classList.remove('hidden');
         cheatPanel.classList.toggle('hidden');
       }
     });

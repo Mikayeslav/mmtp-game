@@ -173,7 +173,7 @@
     <button id="btn-help-trigger" type="button" class="btn-help-trigger" aria-label="Keyboard shortcuts (? key)" title="Help & Shortcuts (?)">?</button>
 
     <!-- Cheat Panel Toggle Button -->
-    <button id="btn-cheat-panel" type="button" class="btn-cheat-toggle" aria-label="Open cheat panel" title="Cheat Panel (Ctrl+Shift+C)">🧪</button>
+    <button id="btn-cheat-panel" type="button" class="btn-cheat-toggle hidden" aria-label="Open cheat panel" title="Cheat Panel (Ctrl+Shift+C)">🧪</button>
 
     <!-- Help Panel (ESC Menu) -->
     <div id="help-panel" class="help-panel hidden" role="dialog" aria-labelledby="help-title" aria-modal="true">
@@ -203,7 +203,19 @@
               <li>Must start with a number (can be negative: <code>-3</code>)</li>
               <li>Then: Operator + Number, repeat</li>
               <li>Example: <code>1 + 2 × 3</code> = <code>9</code> (left-to-right)</li>
-              <li>Operators: <code>+</code> <code>−</code> <code>×</code> <code>÷</code></li>
+              <li>Basic operators: <code>+</code> <code>−</code> <code>×</code> <code>÷</code></li>
+              <li>Advanced operators (if enabled): <code>%</code> (modulo) <code>^</code> (power)</li>
+              <li>Parentheses <code>( )</code> can group sub-expressions</li>
+            </ul>
+          </div>
+          <div class="help-section">
+            <h3>Special Cards</h3>
+            <ul>
+              <li><strong>★ Wild:</strong> Becomes any number you choose (1–99)</li>
+              <li><strong>🎯 Reroll:</strong> Changes the target number to a new random value</li>
+              <li><strong>×2 Double:</strong> Doubles your score for the next expression you score</li>
+              <li><strong>👁 Peek:</strong> Reveals the top 3 cards of the deck</li>
+              <li><strong>🔄 Swap:</strong> Exchange a card from your hand with one from your opponent</li>
             </ul>
           </div>
           <div class="help-section">
@@ -212,6 +224,7 @@
               <li><strong>Unused Time = Bonus XP:</strong> Finishing your turn early gives you extra experience!</li>
               <li>Use mass selection to quickly place multiple cards</li>
               <li>Rehand is useful when you have a bad hand, but it ends your turn immediately</li>
+              <li>Host can customize which operators and special cards are in the deck</li>
             </ul>
           </div>
           <div class="help-section">

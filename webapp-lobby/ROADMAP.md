@@ -1,8 +1,8 @@
 # MMtp — Implementation Roadmap & Status
 
-**Current Status**: Full 2D web game (lobby + gameplay) with WebSocket multiplayer server + public tunnel support + QR code sharing + player profile sync + 5 special cards (Wild, Reroll, Double, Peek, Swap) with host toggle + parentheses support for expression grouping + custom rule presets (save/load/delete/export/import) + achievements system (10+ achievements) + advanced operators (Modulo %, Power ^) + in-game expression history + in-game chat (multiplayer) + round counter HUD + **Nearest Score rule** (partial points for close-but-not-exact expressions). Shared UMD expression evaluator (single source of truth for client + server). Default timer reduced to 20s, target range to 1–10 for faster, more feasible gameplay. Bot AI (3 difficulties) with deep lookahead (5-card combos), special card strategy, nearest-score awareness, stats/progression, sound effects, keyboard shortcuts, responsive UI, invite links, cross-network play all complete. **Cloud deployment ready** (Render blueprint, Dockerfile, Fly.io config). Unity version abandoned.  
-**Last Updated**: 2026-02-20  
-**Version**: v0.9.9
+**Current Status**: Full 2D web game (lobby + gameplay) with WebSocket multiplayer server + cloud deployment on Render + public tunnel support + QR code sharing + player profile sync (6-char codes, debounced autosave) + 5 special cards (Wild, Reroll, Double, Peek, Swap) with per-card host toggle + per-operator selection (chip UI) + parentheses support for expression grouping + custom rule presets (save/load/delete/export/import) + 6 built-in presets + achievements system (10+ achievements) + advanced operators (Modulo %, Power ^) + in-game expression history + in-game chat (multiplayer) + round counter HUD + **Nearest Score rule** (partial points for close-but-not-exact expressions). Perspective-aware multiplayer rendering (complete revamp). Collapsible lobby panels, opponent profile display, sign-out, enhanced match history, admin dashboard (/admin). Dev mode gate for cheat panel. Shared UMD expression evaluator (single source of truth for client + server). Default timer reduced to 20s, target range to 1–10 for faster, more feasible gameplay. Bot AI (3 difficulties) with deep lookahead (5-card combos), special card strategy, nearest-score awareness, stats/progression, sound effects, keyboard shortcuts, responsive UI, invite links, cross-network play all complete. Unity version abandoned.  
+**Last Updated**: 2026-02-21  
+**Version**: v1.0.0
 
 ---
 
@@ -99,7 +99,7 @@
 - ✅ Invite link generation (copy-to-clipboard, `?join=XXXX` auto-join)
 - ✅ QR code generation for invite links (client-side SVG, zero deps)
 - ✅ Tunnel password auto-detection for visitors
-- ⏳ Cloud deployment (permanent hosting on Render/Fly.io/Railway) — **config ready, needs push + connect**
+- ✅ Cloud deployment on Render (render.yaml blueprint, Dockerfile, fly.toml also available)
 
 ---
 
@@ -119,7 +119,7 @@
 
 ---
 
-### ⏳ Phase 3: Advanced Features (PARTIALLY COMPLETE)
+### ✅ Phase 3: Advanced Features & v1.0.0 Polish (COMPLETE)
 
 #### Bot AI
 - ✅ Basic bot (draws, builds expressions, attempts to score)
@@ -197,10 +197,62 @@
 - ✅ All built-in presets updated to reflect new defaults
 - ✅ Documentation (GAMEPLAY_FLOW.md) updated
 
+#### QoL Rule Customization (v1.0.0)
+- ✅ Per-operator selection: chip UI toggles for Add, Sub, Mul, Div, Mod, Pow
+- ✅ Per-special-card selection: chip UI toggles for Wild, Reroll, Double, Peek, Swap
+- ✅ Minimum 1 operator enforced (falls back to Add)
+- ✅ `allowedOperators[]` and `allowedSpecials[]` propagated to server + client deck creation
+- ✅ 6 built-in presets: Standard, Speed, Marathon, Pure Math, Chaos, Beginner
+- ✅ Presets include operator/special selections (each preset has a distinct flavor)
+
+#### Multiplayer Revamp (v1.0.0)
+- ✅ Perspective-aware rendering: local player always rendered at slot 0 (bottom, face-up)
+- ✅ Opponent always rendered at slot 1 (top, face-down) regardless of server-side player ID
+- ✅ `serverPlayerId` tracks actual server ID; `GP.myPlayerId` always 1 for rendering
+- ✅ Event buffering in `net-client.js` to prevent missed `gameState` events during reconnection
+- ✅ `requestState` server action for explicit state recovery after reconnection
+- ✅ Face-down card rendering via `faceDown` flag (removed '?' Unity leftover)
+- ✅ Turn arrow hidden until first server state received (prevents flash)
+- ✅ Rematch flow: resets `_endGameCalled` flag, clears score zones
+- ✅ Server-authoritative timer display in online mode (client reads `gameState.turnTimer`)
+- ✅ `_endGameCalled` guard prevents double `endGame()` calls
+- ✅ Score pile rendering handles both string (server) and card array (local) formats
+- ✅ `_handleScore()` auto-advances turn and tracks `bestExpression`
+
+#### Lobby UX Overhaul (v1.0.0)
+- ✅ Collapsible panels: Rules section, Profile Sync section (fold to save screen space)
+- ✅ Action buttons (Host/Ready/Start/Leave) repositioned above Rules panel
+- ✅ Reset to Defaults: inline button, visible only for host, polished styling
+- ✅ Toggle Bot Ready button removed (bot auto-readies when enabled)
+- ✅ Opponent profile display: avatar, title, rating shown in lobby player lines
+- ✅ Achievement button moved to player panel
+- ✅ Sign out feature: clears all `mmtp-*` localStorage + sessionStorage + reloads
+- ✅ Enhanced match history: opponent name, mode (🌐/🤖/🏠), duration, expressions, best expr
+- ✅ Share URL auto-detects deployed environment (uses `window.location.origin` on Render)
+
+#### Dev Tools & Admin (v1.0.0)
+- ✅ Dev mode gate: cheat panel hidden by default, activated via `?dev=1` URL param or `Ctrl+Shift+C`
+- ✅ `mmtp-dev-mode` localStorage flag persists dev mode across sessions
+- ✅ Sign-out clears dev mode flag
+- ✅ Admin dashboard (`/admin?key=...`): server status, active rooms, active games, profiles
+- ✅ Admin profile management: view, edit stats, delete profiles
+- ✅ Admin room management: view details, force-end games, close rooms
+- ✅ Admin key authentication (`ADMIN_KEY` env var, default `mmtp-dev-2026`)
+- ✅ Auto-refresh (5s) with activity log
+
+#### Profile & Stats Improvements (v1.0.0)
+- ✅ Debounced cloud autosave (3s debounce on name/bio changes, 5s after page load)
+- ✅ Auto-save profile to server after each game (`gameplay.js`)
+- ✅ `scheduleProfileAutoSave()` exposed for external callers
+- ✅ Profile data (avatar, title, rating) sent during room create/join via WebSocket
+- ✅ Server stores and broadcasts player profile in room state
+
 #### Code Quality
 - ✅ Shared UMD expression evaluator (`server/expression.js` works in Node.js + browser)
 - ✅ Deduplicated expression evaluation (client, bot AI, and server all use single module)
 - ✅ `MMtpExpression` global in browser for `canPlaceCard`, `evaluate`, `validateParenBalance`, etc.
+- ✅ CSS variable consistency (`--danger`, `--text` properly defined)
+- ✅ Dead code cleanup (removed legacy `ruleSpecialCards` references)
 
 ---
 
@@ -242,7 +294,10 @@
 | Invite links | ✅ Complete | Copy-to-clipboard, `?join=XXXX` auto-join |
 | QR code sharing | ✅ Complete | Client-side SVG QR code, zero dependencies |
 | Profile sync | ✅ Complete | 6-char codes, server-persisted, cross-device |
-| Cloud deployment | ⏳ Config Ready | render.yaml + Dockerfile + fly.toml ready; needs GitHub push + Render connect |
+| Cloud deployment | ✅ Complete | Deployed on Render (render.yaml + Dockerfile + fly.toml) |
+| Perspective remapping | ✅ Complete | Local player always slot 0, opponent slot 1 |
+| Event buffering | ✅ Complete | `net-client.js` buffers + replays missed events |
+| Reconnection recovery | ✅ Complete | `requestState` action + session tokens |
 | 4-player support | ⏳ Not Started | UI and logic needed |
 
 ### UI/UX
@@ -250,7 +305,7 @@
 | Feature | Status | Notes |
 |---------|--------|-------|
 | Dark theme | ✅ Complete | Consistent styling |
-| Help system | ✅ Complete | ESC menu, lobby hints, `?` keyboard overlay |
+| Help system | ✅ Complete | ESC menu, lobby hints, `?` keyboard overlay, % ^ specials |
 | Keyboard shortcuts | ✅ Complete | Full keyboard support |
 | Animations | ✅ Complete | Cards, XP, turn banners, target pulse, reshuffle |
 | Sound effects | ✅ Complete | Web Audio API, 15 procedural sounds, toggle in settings |
@@ -260,6 +315,12 @@
 | Expression history | ✅ Complete | Collapsible panel showing scored expressions per round |
 | In-game chat | ✅ Complete | Real-time multiplayer chat via WebSocket |
 | Round counter | ✅ Complete | Badge in HUD showing current round number |
+| Collapsible panels | ✅ Complete | Rules, profile sync sections fold to save space |
+| Opponent profiles | ✅ Complete | Avatar, title, rating visible in lobby player lines |
+| Sign out | ✅ Complete | Clears all mmtp-* data + session + reloads |
+| Match history detail | ✅ Complete | Opponent, mode, duration, best expression, card/expr counts |
+| Per-operator selection | ✅ Complete | Chip UI for add/sub/mul/div/mod/pow |
+| Per-special selection | ✅ Complete | Chip UI for wild/reroll/double/peek/swap |
 
 ### Statistics & Progression
 
@@ -280,11 +341,14 @@
 
 | Feature | Status | Notes |
 |---------|--------|-------|
-| Cheat Panel | ✅ Complete | All testing features consolidated |
+| Cheat Panel | ✅ Complete | Hidden by default, dev mode gate |
+| Dev mode | ✅ Complete | `?dev=1` URL param or `Ctrl+Shift+C` to activate |
 | Stat manipulation | ✅ Complete | XP, level, wins, rating controls |
 | Game override | ✅ Complete | Timer, cards, deck controls |
 | Skip bot | ✅ Complete | Fast testing |
-| Simulate P2 | ✅ Complete | Lobby testing |
+| Simulate P2 | ✅ Complete | Lobby testing (auto-ready) |
+| Admin dashboard | ✅ Complete | `/admin?key=...` — rooms, games, profiles, logs |
+| Profile autosave | ✅ Complete | Debounced 3s cloud save + save after each game |
 
 ### Advanced Features
 
@@ -293,7 +357,7 @@
 | Special cards | ✅ Complete | All 5 types (Wild, Reroll, Double, Peek, Swap) + host toggle |
 | Parentheses | ✅ Complete | `(` and `)` cards, recursive evaluation, balanced validation |
 | Advanced operators | ✅ Complete | Modulo (%), Power (^) with correct precedence |
-| Custom presets | ✅ Complete | Save/load/delete + export/import JSON |
+| Custom presets | ✅ Complete | Save/load/delete + export/import JSON + 6 built-in presets |
 | Shared expression module | ✅ Complete | UMD module, single source for client + server + bot |
 | Expression history | ✅ Complete | Collapsible panel, scored expressions log |
 | In-game chat | ✅ Complete | Real-time multiplayer chat via WebSocket |
@@ -308,26 +372,24 @@
 ## Known Issues & Limitations
 
 ### Current Limitations
-1. **Cloud Deployment**: No permanent cloud hosting — use `--public` flag for temporary public URLs
-2. **4 Players**: UI and logic not implemented
-3. **Localtunnel**: Free tier has rate limits; tunnel may close and auto-retry
+1. **4 Players**: UI and logic not implemented (2-player only)
+2. **Localtunnel**: Free tier has rate limits; tunnel may close and auto-retry
+3. **No automated tests**: Manual testing only
 
 ### Technical Debt
-1. **Code Organization**: Some functions could be better modularized (planned next)
-2. **Error Handling**: Could be more comprehensive in edge cases (planned next)
-3. **Testing**: No automated tests (planned next)
-4. ~~**Expression evaluator**: Duplicated between client and server~~ — ✅ Fixed (UMD shared module)
+1. **Code Organization**: Some functions could be better modularized
+2. **Error Handling**: Could be more comprehensive in edge cases
+3. ~~**Expression evaluator**: Duplicated between client and server~~ — ✅ Fixed (UMD shared module)
+4. ~~**Cloud Deployment**: No permanent hosting~~ — ✅ Fixed (Render)
 
 ---
 
 ## Next Steps (Priority Order)
 
-### Immediate (High Priority)
-1. **Cloud Deployment**: Push to GitHub + connect Render (config files ready: `render.yaml`, `Dockerfile`, `fly.toml`)
-
 ### Short-term (Medium Priority)
 1. **4-Player Support**: UI layout and turn management
 2. **Special Card Cost System**: Balancing specials with a cost mechanic
+3. **Automated Testing**: Unit tests for expression evaluator, game engine
 
 ### Long-term (Low Priority)
 1. **Tournament Mode**: Bracket competitions
@@ -339,34 +401,43 @@
 
 ```
 webapp-lobby/
-├── index.html          # Lobby (Main Menu)
-├── app.js              # Lobby logic
-├── styles.css          # Lobby styles
-├── gameplay.html       # Gameplay scene
-├── gameplay.js         # Gameplay logic
-├── gameplay.css        # Gameplay styles
-├── bot-ai-v2.js        # Bot AI engine (expression eval, hand planning)
-├── net-client.js       # Socket.io client wrapper (MMtpNet)
-├── qr.js               # Minimal QR code generator (SVG, zero deps)
-├── sfx.js              # Sound effects engine (Web Audio API)
+├── index.html            # Lobby (Main Menu)
+├── app.js                # Lobby logic & state management
+├── app-online.js         # Client-side online lobby (WebSocket connect, auto-join)
+├── app-cheat.js          # Lobby cheat panel & profile sync (dev mode gate)
+├── styles.css            # Lobby styles
+├── gameplay.html         # Gameplay scene
+├── gameplay.js           # Gameplay logic (cards, turns, scoring, rendering)
+├── gameplay-online.js    # Online gameplay (perspective remapping, server state sync)
+├── gameplay-bot.js       # Bot turn logic (AI integration)
+├── gameplay-cheat.js     # Gameplay cheat panel (dev mode gate)
+├── gameplay.css          # Gameplay styles
+├── bot-ai-v2.js          # Bot AI engine (expression eval, hand planning)
+├── net-client.js         # Socket.io client wrapper (MMtpNet, event buffering)
+├── qr.js                 # Minimal QR code generator (SVG, zero deps)
+├── sfx.js                # Sound effects engine (Web Audio API)
 ├── server/
-│   ├── index.js        # Express + Socket.io server entry
-│   ├── rooms.js        # Room management (create, join, leave)
-│   ├── game-engine.js  # Server-authoritative game engine
-│   ├── expression.js   # Shared expression evaluator
-│   ├── profiles.js     # Player profile sync (JSON file DB)
-│   └── package.json    # Server dependencies
-├── start-server.bat    # Server startup script (LAN only)
-├── start-public.bat    # Server + public tunnel (any network)
-├── CONCEPT.md          # Game concept & vision
-├── ROADMAP.md          # This file
-├── GAMEPLAY_FLOW.md    # ASCII gameplay flowchart
-├── MULTIPLAYER_PLAN.md # WebSocket server architecture plan
-├── SETUP_MULTIDEVICE.md # Multi-device setup guide
-└── README.md           # Quick start & overview
+│   ├── index.js          # Express + Socket.io server entry + admin API
+│   ├── rooms.js          # Room management (create, join, leave, profile data)
+│   ├── game-engine.js    # Server-authoritative game engine
+│   ├── expression.js     # Shared UMD expression evaluator
+│   ├── profiles.js       # Player profile sync (JSON file DB, admin access)
+│   ├── admin.html        # Admin dashboard (rooms, games, profiles, logs)
+│   └── package.json      # Server dependencies
+├── start-server.bat      # Server startup script (LAN only)
+├── start-public.bat      # Server + public tunnel (any network)
+├── render.yaml           # Render deployment blueprint
+├── Dockerfile            # Docker deployment config
+├── fly.toml              # Fly.io deployment config
+├── CONCEPT.md            # Game concept & vision
+├── ROADMAP.md            # This file
+├── GAMEPLAY_FLOW.md      # ASCII gameplay flowchart
+├── MULTIPLAYER_PLAN.md   # WebSocket server architecture plan
+├── SETUP_MULTIDEVICE.md  # Multi-device setup guide
+└── README.md             # Quick start & overview
 ```
 
 ---
 
-**Last Updated**: 2026-02-20  
-**Version**: v0.9.9
+**Last Updated**: 2026-02-21  
+**Version**: v1.0.0

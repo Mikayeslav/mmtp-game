@@ -111,8 +111,16 @@
           </div>
         </div>
 
+        <!-- Player Panel Actions (achievements, sign out) -->
+        <div class="player-panel-actions">
+          <button id="btn-achievements" class="btn btn-small btn-tool">🏆 Achievements</button>
+          <button id="btn-sign-out" class="btn btn-small btn-danger-small" title="Clear profile & sign out">🚪 Sign Out</button>
+        </div>
+
         <!-- Profile Sync -->
-        <div class="profile-sync-section">
+        <div class="profile-sync-section collapsible-section">
+          <h4 class="section-toggle" id="profile-sync-toggle"><span class="toggle-icon">▶</span> Cloud Save</h4>
+          <div class="section-body collapsed" id="profile-sync-body">
           <div class="profile-code-row">
             <label for="profile-code-input">Profile Code:</label>
             <input type="text" id="profile-code-input" class="profile-code-input" maxlength="6" placeholder="XXXXXX" autocomplete="off" spellcheck="false">
@@ -121,6 +129,7 @@
             <button id="btn-profile-create" class="btn btn-small btn-accent">New</button>
           </div>
           <div id="profile-status" class="profile-status hidden"></div>
+          </div>
         </div>
 
         <!-- Detailed Stats (collapsible) -->
@@ -275,7 +284,6 @@
               <option value="hard">Hard</option>
             </select>
           </div>
-          <button id="btn-sim-p2-ready" class="btn btn-small">Toggle Bot Ready</button>
         </div>
 
         <!-- Host Room Info -->
@@ -308,6 +316,7 @@
         <div class="join-section">
           <div class="join-inputs">
             <input type="text" id="join-room-code" class="join-input" placeholder="Room Code (4 digits)" maxlength="4" pattern="[0-9]{4}">
+            <button id="btn-paste-code" class="btn btn-small btn-tool" title="Paste from clipboard">📋</button>
             <button id="btn-join" class="btn btn-primary btn-small">Join</button>
           </div>
         </div>
@@ -320,9 +329,21 @@
         </div>
       </div>
 
-      <!-- Rules Section -->
-      <div class="rules-section">
-        <h3>Rules</h3>
+      <!-- Action Buttons (prominent, right after room) -->
+      <div class="action-buttons">
+        <button id="btn-host" class="btn btn-primary">Host Room</button>
+        <button id="btn-ready" class="btn btn-secondary" disabled>Ready</button>
+        <button id="btn-start" class="btn btn-success" disabled>Start Game</button>
+        <button id="btn-leave" class="btn btn-danger hidden">Leave</button>
+      </div>
+
+      <!-- Rules Section (collapsible) -->
+      <div class="rules-section collapsible-section">
+        <h3 class="section-toggle" id="rules-toggle">
+          <span class="toggle-icon">▼</span> Rules
+          <button id="btn-reset-rules" class="btn btn-tiny btn-reset-inline hidden" title="Reset to defaults">↺ Reset</button>
+        </h3>
+        <div class="section-body" id="rules-body">
         <div class="rule-presets-bar">
           <select id="rule-preset-select" class="preset-select">
             <option value="">— Custom —</option>
@@ -411,23 +432,14 @@
           </div>
         </div>
         <div id="rules-error" class="rules-error hidden"></div>
-        <button id="btn-reset-rules" class="btn btn-small hidden">Reset to Defaults</button>
-      </div>
-
-      <!-- Action Buttons -->
-      <div class="action-buttons">
-        <button id="btn-host" class="btn btn-primary">Host Room</button>
-        <button id="btn-ready" class="btn btn-secondary" disabled>Ready</button>
-        <button id="btn-start" class="btn btn-success" disabled>Start Game</button>
-        <button id="btn-leave" class="btn btn-danger hidden">Leave</button>
+        </div><!-- /.section-body -->
       </div>
 
       <!-- Toolbar (compact utility buttons) -->
       <div class="lobby-toolbar">
         <button id="btn-help" class="btn btn-small btn-tool">❓ Help</button>
         <button id="btn-settings" class="btn btn-small btn-tool">⚙️ Settings</button>
-        <button id="btn-achievements" class="btn btn-small btn-tool">🏆 Achievements</button>
-        <button id="btn-cheat-panel" class="btn btn-small btn-tool">🧪 Cheats</button>
+        <button id="btn-cheat-panel" class="btn btn-small btn-tool hidden">🧪 Cheats</button>
         <button id="btn-toggle-hints-inline" class="btn btn-small btn-tool">💡 Hints</button>
       </div>
 
@@ -435,8 +447,10 @@
       <div id="lobby-hints-inline" class="lobby-hints-inline hidden">
         <div id="hints-inline-content" class="hints-content">
           <p>• Host a room or join with a 4-digit code</p>
-          <p>• Check "Simulate Player 2 (Bot)" for single-player practice</p>
+          <p>• Enable "Simulate Player 2 (Bot)" for single-player practice</p>
           <p>• All players must be ready before host can start</p>
+          <p>• Customize operators and special cards in the Rules panel</p>
+          <p>• Save/load your profile via Cloud Save with a 6-char code</p>
           <p>• Keyboard: <kbd>H</kbd>=Host, <kbd>R</kbd>=Ready, <kbd>S</kbd>=Start, <kbd>Esc</kbd>=Leave</p>
         </div>
       </div>
@@ -459,14 +473,21 @@
       </div>
       <div class="modal-body">
         <h3>How to Play</h3>
-        <p>Build mathematical expressions to match target numbers!</p>
+        <p>Build mathematical expressions from cards to hit target numbers. First to reach the win score wins!</p>
+        <h3>Game Flow</h3>
+        <ul>
+          <li>Host a room → other players join with the 4-digit code</li>
+          <li>Or enable "Simulate Player 2 (Bot)" for single-player</li>
+          <li>Customize rules: hand size, timer, operators, special cards</li>
+          <li>All players click Ready → host clicks Start</li>
+        </ul>
         <h3>Controls</h3>
         <ul>
-          <li><strong>H</strong> - Host room</li>
-          <li><strong>R</strong> - Toggle ready</li>
-          <li><strong>S</strong> - Start game (host only)</li>
-          <li><strong>ESC</strong> - Leave/Close help</li>
-          <li><strong>?</strong> - Toggle help</li>
+          <li><strong>H</strong> — Host room</li>
+          <li><strong>R</strong> — Toggle ready</li>
+          <li><strong>S</strong> — Start game (host only)</li>
+          <li><strong>ESC</strong> — Leave / Close help</li>
+          <li><strong>?</strong> — Toggle help</li>
         </ul>
       </div>
     </div>
@@ -596,7 +617,7 @@
   </div>
 
   <!-- Version -->
-  <div class="version">v<span id="version-number">0.9.0</span></div>
+  <div class="version">v<span id="version-number">1.0.0</span></div>
 
   <script src="https://cdn.socket.io/4.7.4/socket.io.min.js"></script>
   <script src="sfx.js"></script>

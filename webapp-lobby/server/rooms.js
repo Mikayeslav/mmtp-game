@@ -31,9 +31,9 @@ class RoomManager {
    * @param {string} hostName
    * @param {Object} rules
    */
-  createRoom(hostSocketId, hostName, rules = {}) {
+  createRoom(hostSocketId, hostName, rules = {}, profile = {}) {
     const code = this.generateCode();
-    const room = new Room(code, hostSocketId, hostName, rules);
+    const room = new Room(code, hostSocketId, hostName, rules, profile);
     this.rooms.set(code, room);
     console.log(`[Rooms] Created room ${code} by "${hostName}" (${hostSocketId})`);
     return room;
@@ -87,10 +87,32 @@ class RoomManager {
       gameStarted: room.gameStarted,
     }));
   }
+
+  /**
+   * Detailed room list for admin monitoring.
+   */
+  listRoomsDetailed() {
+    return Array.from(this.rooms.entries()).map(([code, room]) => ({
+      code,
+      createdAt: room.createdAt,
+      gameStarted: room.gameStarted,
+      rules: room.rules,
+      players: room.players.map(p => ({
+        playerId: p.playerId,
+        name: p.name,
+        ready: p.ready,
+        isHost: p.isHost,
+        connected: p.connected,
+        avatar: p.avatar,
+        title: p.title,
+        rating: p.rating,
+      })),
+    }));
+  }
 }
 
 class Room {
-  constructor(code, hostSocketId, hostName, rules = {}) {
+  constructor(code, hostSocketId, hostName, rules = {}, hostProfile = {}) {
     this.code = code;
     this.hostSocketId = hostSocketId;
     this.maxPlayers = 2;
@@ -123,10 +145,10 @@ class Room {
 
     /** @type {Array<{socketId: string, name: string, ready: boolean, playerId: number, sessionToken: string}>} */
     this.players = [];
-    this.addPlayer(hostSocketId, hostName, true); // Host is player 1
+    this.addPlayer(hostSocketId, hostName, true, hostProfile); // Host is player 1
   }
 
-  addPlayer(socketId, name, isHost = false) {
+  addPlayer(socketId, name, isHost = false, profile = {}) {
     if (this.players.length >= this.maxPlayers) return null;
     const playerId = this.players.length + 1;
     const sessionToken = this._generateToken();
@@ -139,6 +161,11 @@ class Room {
       sessionToken,
       connected: true,
       disconnectedAt: null,
+      // Profile data visible to other players
+      avatar: profile.avatar || '🃏',
+      title: profile.title || 'Newcomer',
+      rating: profile.rating || 1000,
+      level: profile.level || 1,
     };
     this.players.push(player);
     this.sessionTokens.set(sessionToken, socketId);
@@ -218,6 +245,10 @@ class Room {
         ready: p.ready,
         isHost: p.isHost,
         connected: p.connected,
+        avatar: p.avatar || '🃏',
+        title: p.title || 'Newcomer',
+        rating: p.rating || 1000,
+        level: p.level || 1,
       })),
       rules: this.rules,
       gameStarted: this.gameStarted,

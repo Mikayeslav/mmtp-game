@@ -92,6 +92,7 @@
 
     // Ensure online game mode is active
     GP.onlineGame = true;
+    GP._receivedFirstState = true;
     receivedServerState = true;
 
     // ── Store real server player ID, set rendering ID to always 1 ──
@@ -380,6 +381,19 @@
     // ── rematch: server reset the game ──
     MMtpNet.on('rematch', () => {
       GP.toast('Rematch starting!', 'info');
+      // Hide game-over modal and reset flag so next endGame works
+      const modal = document.getElementById('game-over-modal');
+      if (modal) modal.classList.add('hidden');
+      GP._endGameCalled = false;
+      // Reset score zones
+      const sz1 = document.getElementById('score-zone-p1');
+      const sz2 = document.getElementById('score-zone-p2');
+      if (sz1) sz1.innerHTML = '';
+      if (sz2) sz2.innerHTML = '';
+      // Clear playfield display
+      const exprDisplay = document.getElementById('expression-display');
+      if (exprDisplay) exprDisplay.innerHTML = '';
+      // Server will broadcast gameState shortly, which calls applyServerState
     });
 
     // ── playerDisconnected ──

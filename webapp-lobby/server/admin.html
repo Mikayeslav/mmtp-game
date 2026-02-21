@@ -1,0 +1,474 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>MMtp — Admin Monitor</title>
+<style>
+  :root {
+    --bg: #0d1117; --bg-card: #161b22; --bg-input: #21262d;
+    --border: #30363d; --text: #e6edf3; --text-muted: #8b949e;
+    --accent: #58a6ff; --success: #3fb950; --error: #f85149;
+    --warning: #d29922; --radius: 8px;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    background: var(--bg); color: var(--text);
+    padding: 20px; max-width: 1200px; margin: 0 auto;
+  }
+  h1 { font-size: 1.5rem; margin-bottom: 4px; }
+  .subtitle { color: var(--text-muted); font-size: 0.85rem; margin-bottom: 20px; }
+  h2 { font-size: 1.1rem; margin-bottom: 12px; color: var(--accent); }
+  h3 { font-size: 0.9rem; margin-bottom: 8px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.05em; }
+
+  .top-bar {
+    display: flex; justify-content: space-between; align-items: center;
+    margin-bottom: 20px; flex-wrap: wrap; gap: 10px;
+  }
+  .status-chips { display: flex; gap: 10px; flex-wrap: wrap; }
+  .chip {
+    background: var(--bg-card); border: 1px solid var(--border);
+    border-radius: 20px; padding: 6px 14px; font-size: 0.8rem;
+    display: flex; align-items: center; gap: 6px;
+  }
+  .chip .val { font-weight: 700; color: var(--accent); }
+  .chip.live .val { color: var(--success); }
+
+  .panels { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+  @media (max-width: 768px) { .panels { grid-template-columns: 1fr; } }
+
+  .panel {
+    background: var(--bg-card); border: 1px solid var(--border);
+    border-radius: var(--radius); padding: 16px; overflow: hidden;
+  }
+  .panel.full-width { grid-column: 1 / -1; }
+
+  table { width: 100%; border-collapse: collapse; font-size: 0.82rem; }
+  th { text-align: left; padding: 8px; border-bottom: 2px solid var(--border); color: var(--text-muted); font-weight: 600; font-size: 0.75rem; text-transform: uppercase; }
+  td { padding: 8px; border-bottom: 1px solid var(--border); vertical-align: top; }
+  tr:hover td { background: rgba(88, 166, 255, 0.05); }
+  .empty-msg { color: var(--text-muted); font-style: italic; padding: 20px; text-align: center; }
+
+  .badge {
+    display: inline-block; padding: 2px 8px; border-radius: 10px;
+    font-size: 0.7rem; font-weight: 600; text-transform: uppercase;
+  }
+  .badge-online { background: rgba(63, 185, 80, 0.2); color: var(--success); }
+  .badge-offline { background: rgba(248, 81, 73, 0.2); color: var(--error); }
+  .badge-ingame { background: rgba(88, 166, 255, 0.2); color: var(--accent); }
+  .badge-lobby { background: rgba(210, 153, 34, 0.2); color: var(--warning); }
+
+  .btn {
+    background: var(--bg-input); border: 1px solid var(--border); color: var(--text);
+    padding: 6px 12px; border-radius: 6px; cursor: pointer; font-size: 0.78rem;
+    transition: background 0.15s;
+  }
+  .btn:hover { background: var(--border); }
+  .btn-danger { border-color: var(--error); color: var(--error); }
+  .btn-danger:hover { background: rgba(248, 81, 73, 0.15); }
+  .btn-accent { border-color: var(--accent); color: var(--accent); }
+  .btn-accent:hover { background: rgba(88, 166, 255, 0.15); }
+  .btn-sm { padding: 3px 8px; font-size: 0.7rem; }
+
+  .actions { display: flex; gap: 6px; flex-wrap: wrap; }
+  .auto-refresh { display: flex; align-items: center; gap: 8px; }
+  .auto-refresh label { font-size: 0.8rem; color: var(--text-muted); }
+  #refresh-toggle { accent-color: var(--accent); }
+
+  /* Profile editor modal */
+  .modal-overlay {
+    position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+    background: rgba(0,0,0,0.7); display: flex; align-items: center; justify-content: center;
+    z-index: 1000; display: none;
+  }
+  .modal-overlay.active { display: flex; }
+  .modal {
+    background: var(--bg-card); border: 1px solid var(--border);
+    border-radius: var(--radius); padding: 24px; max-width: 500px; width: 95%;
+    max-height: 80vh; overflow-y: auto;
+  }
+  .modal h2 { margin-bottom: 16px; }
+  .form-row { margin-bottom: 12px; }
+  .form-row label { display: block; font-size: 0.78rem; color: var(--text-muted); margin-bottom: 4px; }
+  .form-row input, .form-row textarea {
+    width: 100%; background: var(--bg-input); border: 1px solid var(--border);
+    color: var(--text); padding: 8px; border-radius: 6px; font-size: 0.85rem;
+  }
+  .form-row input:focus, .form-row textarea:focus { outline: none; border-color: var(--accent); }
+  .modal-actions { display: flex; gap: 8px; justify-content: flex-end; margin-top: 16px; }
+
+  .log-feed {
+    background: var(--bg); border: 1px solid var(--border);
+    border-radius: 6px; padding: 10px; max-height: 200px; overflow-y: auto;
+    font-family: 'Cascadia Code', 'Fira Code', monospace; font-size: 0.75rem;
+    line-height: 1.6;
+  }
+  .log-entry { color: var(--text-muted); }
+  .log-entry .time { color: var(--text-muted); opacity: 0.6; }
+  .log-entry.info { color: var(--accent); }
+  .log-entry.warn { color: var(--warning); }
+  .log-entry.err { color: var(--error); }
+</style>
+</head>
+<body>
+
+<div class="top-bar">
+  <div>
+    <h1>🔧 MMtp Admin Monitor</h1>
+    <div class="subtitle">Server dashboard &amp; dev tools</div>
+  </div>
+  <div style="display:flex;gap:10px;align-items:center">
+    <div class="auto-refresh">
+      <input type="checkbox" id="refresh-toggle" checked>
+      <label for="refresh-toggle">Auto-refresh (5s)</label>
+    </div>
+    <button class="btn btn-accent" onclick="refreshAll()">⟳ Refresh Now</button>
+  </div>
+</div>
+
+<div class="status-chips" id="status-chips"></div>
+
+<div class="panels">
+
+  <!-- Active Rooms -->
+  <div class="panel">
+    <h2>🏠 Active Rooms</h2>
+    <div id="rooms-table"></div>
+  </div>
+
+  <!-- Active Games -->
+  <div class="panel">
+    <h2>🎮 Active Games</h2>
+    <div id="games-table"></div>
+  </div>
+
+  <!-- Profiles -->
+  <div class="panel full-width">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+      <h2 style="margin:0">👤 Profiles</h2>
+      <button class="btn btn-sm" onclick="refreshProfiles()">⟳ Refresh</button>
+    </div>
+    <div id="profiles-table"></div>
+  </div>
+
+  <!-- Server Logs (recent actions) -->
+  <div class="panel full-width">
+    <h2>📋 Activity Log</h2>
+    <div class="log-feed" id="log-feed">
+      <div class="log-entry"><span class="time">[--:--]</span> Waiting for data...</div>
+    </div>
+  </div>
+
+</div>
+
+<!-- Profile Edit Modal -->
+<div class="modal-overlay" id="profile-modal">
+  <div class="modal">
+    <h2>Edit Profile: <span id="modal-code"></span></h2>
+    <div class="form-row"><label>Name</label><input id="edit-name" type="text"></div>
+    <div class="form-row"><label>Avatar</label><input id="edit-avatar" type="text" maxlength="4"></div>
+    <div class="form-row"><label>Title</label><input id="edit-title" type="text"></div>
+    <h3 style="margin-top:16px">Stats</h3>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+      <div class="form-row"><label>Wins</label><input id="edit-wins" type="number" min="0"></div>
+      <div class="form-row"><label>Losses</label><input id="edit-losses" type="number" min="0"></div>
+      <div class="form-row"><label>Draws</label><input id="edit-draws" type="number" min="0"></div>
+      <div class="form-row"><label>Rating</label><input id="edit-rating" type="number" min="0"></div>
+      <div class="form-row"><label>Level</label><input id="edit-level" type="number" min="1"></div>
+      <div class="form-row"><label>XP</label><input id="edit-xp" type="number" min="0"></div>
+      <div class="form-row"><label>Win Streak</label><input id="edit-winstreak" type="number" min="0"></div>
+      <div class="form-row"><label>Best Streak</label><input id="edit-beststreak" type="number" min="0"></div>
+    </div>
+    <div class="modal-actions">
+      <button class="btn" onclick="closeProfileModal()">Cancel</button>
+      <button class="btn btn-accent" onclick="saveProfileEdit()">💾 Save</button>
+      <button class="btn btn-danger" onclick="deleteProfile()">🗑 Delete</button>
+    </div>
+  </div>
+</div>
+
+<script>
+const ADMIN_KEY = new URLSearchParams(window.location.search).get('key') || '';
+const h = { 'X-Admin-Key': ADMIN_KEY, 'Content-Type': 'application/json' };
+
+let autoRefreshInterval = null;
+let activityLog = [];
+let editingCode = null;
+
+function log(msg, level = '') {
+  const t = new Date().toLocaleTimeString();
+  activityLog.push({ time: t, msg, level });
+  if (activityLog.length > 100) activityLog.shift();
+  renderLog();
+}
+
+function renderLog() {
+  const el = document.getElementById('log-feed');
+  el.innerHTML = activityLog.slice().reverse().map(e =>
+    `<div class="log-entry ${e.level}"><span class="time">[${e.time}]</span> ${e.msg}</div>`
+  ).join('');
+}
+
+async function fetchJSON(url) {
+  const sep = url.includes('?') ? '&' : '?';
+  const res = await fetch(`${url}${sep}key=${ADMIN_KEY}`);
+  return res.json();
+}
+
+async function postJSON(url, body = {}) {
+  const sep = url.includes('?') ? '&' : '?';
+  const res = await fetch(`${url}${sep}key=${ADMIN_KEY}`, {
+    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body)
+  });
+  return res.json();
+}
+
+async function deleteJSON(url) {
+  const sep = url.includes('?') ? '&' : '?';
+  const res = await fetch(`${url}${sep}key=${ADMIN_KEY}`, { method: 'DELETE' });
+  return res.json();
+}
+
+// ── Status + Rooms + Games ──
+async function refreshStatus() {
+  try {
+    const data = await fetchJSON('/api/admin/status');
+    if (!data.ok) { log('Status fetch failed: ' + data.error, 'err'); return; }
+
+    // Chips
+    const mem = Math.round(data.memory.rss / 1024 / 1024);
+    const upH = Math.floor(data.uptime / 3600);
+    const upM = Math.floor((data.uptime % 3600) / 60);
+    document.getElementById('status-chips').innerHTML = [
+      chip('Env', data.env, data.env === 'production' ? 'live' : ''),
+      chip('Node', data.nodeVersion),
+      chip('Uptime', `${upH}h ${upM}m`),
+      chip('Memory', `${mem} MB`),
+      chip('Sockets', data.connectedSockets, 'live'),
+      chip('Rooms', data.rooms.length),
+      chip('Games', data.activeGames.length),
+      chip('Profiles', data.profileCount),
+    ].join('');
+
+    // Rooms table
+    renderRooms(data.rooms);
+    // Games — fetch detailed game data
+    try {
+      const gData = await fetchJSON('/api/admin/rooms');
+      if (gData.ok) renderGames(data.rooms, data.activeGames, gData.games);
+      else renderGames(data.rooms, data.activeGames, []);
+    } catch (_) {
+      renderGames(data.rooms, data.activeGames, []);
+    }
+  } catch (e) {
+    log('Error fetching status: ' + e.message, 'err');
+  }
+}
+
+function chip(label, val, cls = '') {
+  return `<div class="chip ${cls}"><span>${label}:</span> <span class="val">${val}</span></div>`;
+}
+
+function renderRooms(rooms) {
+  const el = document.getElementById('rooms-table');
+  if (!rooms.length) { el.innerHTML = '<div class="empty-msg">No active rooms</div>'; return; }
+  let html = '<table><tr><th>Code</th><th>Players</th><th>Status</th><th>Actions</th></tr>';
+  rooms.forEach(r => {
+    const status = r.gameStarted
+      ? '<span class="badge badge-ingame">In Game</span>'
+      : '<span class="badge badge-lobby">Lobby</span>';
+    const players = r.players.map(p =>
+      `${p.avatar || '🃏'} ${p.name} ${p.connected ? '' : '(dc)'}`
+    ).join(', ');
+    html += `<tr>
+      <td><strong>${r.code}</strong></td>
+      <td>${players}</td>
+      <td>${status}</td>
+      <td class="actions">
+        <button class="btn btn-sm btn-danger" onclick="closeRoom('${r.code}')">✕ Close</button>
+      </td>
+    </tr>`;
+  });
+  html += '</table>';
+  el.innerHTML = html;
+}
+
+function renderGames(rooms, activeGameCodes, gamesData) {
+  const el = document.getElementById('games-table');
+  if (!gamesData || !gamesData.length) { el.innerHTML = '<div class="empty-msg">No active games</div>'; return; }
+  let html = '<table><tr><th>Room</th><th>Turn</th><th>Target</th><th>Score</th><th>Deck</th><th>Time</th><th>Actions</th></tr>';
+  gamesData.forEach(g => {
+    const pNames = g.players.map(p => `${p.name} (${p.score}pts, ${p.handSize}🃏)`).join(' vs ');
+    const elapsed = g.elapsed ? `${Math.floor(g.elapsed/60)}:${String(g.elapsed%60).padStart(2,'0')}` : '—';
+    const status = g.gameOver
+      ? `<span class="badge badge-offline">Over${g.winner ? ' — P'+g.winner+' wins' : ''}</span>`
+      : `<span class="badge badge-online">P${g.activePlayer}'s turn</span>`;
+    html += `<tr>
+      <td><strong>${g.code}</strong></td>
+      <td>#${g.turnNumber} ${status}</td>
+      <td style="font-weight:700;color:var(--accent)">${g.target}</td>
+      <td style="font-size:0.78rem">${pNames}</td>
+      <td>${g.deckRemaining}</td>
+      <td>${elapsed}</td>
+      <td class="actions">
+        <button class="btn btn-sm btn-danger" onclick="forceEndGame('${g.code}')">⏹ End</button>
+      </td>
+    </tr>`;
+  });
+  html += '</table>';
+  el.innerHTML = html;
+}
+
+// ── Profiles ──
+async function refreshProfiles() {
+  try {
+    const data = await fetchJSON('/api/admin/profiles');
+    if (!data.ok) { log('Profile fetch failed', 'err'); return; }
+    renderProfiles(data.profiles);
+  } catch (e) {
+    log('Error fetching profiles: ' + e.message, 'err');
+  }
+}
+
+function renderProfiles(list) {
+  const el = document.getElementById('profiles-table');
+  if (!list.length) { el.innerHTML = '<div class="empty-msg">No profiles</div>'; return; }
+  let html = '<table><tr><th></th><th>Code</th><th>Name</th><th>Title</th><th>W/L/D</th><th>Rating</th><th>Updated</th><th>Actions</th></tr>';
+  list.sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0));
+  list.forEach(p => {
+    const s = p.stats || {};
+    const updated = p.updatedAt ? new Date(p.updatedAt).toLocaleDateString() : '—';
+    html += `<tr>
+      <td>${p.avatar}</td>
+      <td><code>${p.code}</code></td>
+      <td>${esc(p.name)}</td>
+      <td style="color:var(--text-muted)">${esc(p.title)}</td>
+      <td>${s.wins||0}/${s.losses||0}/${s.draws||0}</td>
+      <td>${s.rating||1000}</td>
+      <td style="color:var(--text-muted)">${updated}</td>
+      <td class="actions">
+        <button class="btn btn-sm btn-accent" onclick="editProfile('${p.code}')">✏ Edit</button>
+        <button class="btn btn-sm btn-danger" onclick="deleteProfileDirect('${p.code}')">✕</button>
+      </td>
+    </tr>`;
+  });
+  html += '</table>';
+  el.innerHTML = html;
+}
+
+function esc(s) { const d = document.createElement('div'); d.textContent = s || ''; return d.innerHTML; }
+
+// ── Room/Game actions ──
+async function closeRoom(code) {
+  if (!confirm(`Close room ${code}?`)) return;
+  const r = await deleteJSON(`/api/admin/rooms/${code}`);
+  log(r.ok ? `Room ${code} closed` : `Failed: ${r.error}`, r.ok ? 'info' : 'err');
+  refreshStatus();
+}
+
+async function forceEndGame(code) {
+  if (!confirm(`Force end game in room ${code}?`)) return;
+  const r = await postJSON(`/api/admin/rooms/${code}/end`);
+  log(r.ok ? `Game in ${code} ended` : `Failed: ${r.error}`, r.ok ? 'info' : 'err');
+  refreshStatus();
+}
+
+// ── Profile editor ──
+async function editProfile(code) {
+  editingCode = code;
+  document.getElementById('modal-code').textContent = code;
+  try {
+    const data = await fetchJSON(`/api/admin/profiles/${code}`);
+    if (!data.ok) { alert(data.error); return; }
+    const d = data.data;
+    document.getElementById('edit-name').value = d.name || '';
+    document.getElementById('edit-avatar').value = d.avatar || '';
+    document.getElementById('edit-title').value = d.title || '';
+    const s = d.stats || {};
+    document.getElementById('edit-wins').value = s.wins || 0;
+    document.getElementById('edit-losses').value = s.losses || 0;
+    document.getElementById('edit-draws').value = s.draws || 0;
+    document.getElementById('edit-rating').value = s.rating || 1000;
+    document.getElementById('edit-level').value = s.level || 1;
+    document.getElementById('edit-xp').value = s.xp || 0;
+    document.getElementById('edit-winstreak').value = s.winStreak || 0;
+    document.getElementById('edit-beststreak').value = s.bestWinStreak || 0;
+    document.getElementById('profile-modal').classList.add('active');
+  } catch (e) {
+    alert('Failed to load profile: ' + e.message);
+  }
+}
+
+function closeProfileModal() {
+  document.getElementById('profile-modal').classList.remove('active');
+  editingCode = null;
+}
+
+async function saveProfileEdit() {
+  if (!editingCode) return;
+  const stats = {
+    wins: parseInt(document.getElementById('edit-wins').value) || 0,
+    losses: parseInt(document.getElementById('edit-losses').value) || 0,
+    draws: parseInt(document.getElementById('edit-draws').value) || 0,
+    rating: parseInt(document.getElementById('edit-rating').value) || 1000,
+    level: parseInt(document.getElementById('edit-level').value) || 1,
+    xp: parseInt(document.getElementById('edit-xp').value) || 0,
+    winStreak: parseInt(document.getElementById('edit-winstreak').value) || 0,
+    bestWinStreak: parseInt(document.getElementById('edit-beststreak').value) || 0,
+  };
+  // Save stats
+  const r1 = await postJSON(`/api/admin/profiles/${editingCode}/stats`, stats);
+  // Save name/avatar/title
+  const profileData = {
+    name: document.getElementById('edit-name').value,
+    avatar: document.getElementById('edit-avatar').value,
+    title: document.getElementById('edit-title').value,
+    stats: stats,
+  };
+  const sep = '/api/profile/save'.includes('?') ? '&' : '?';
+  await fetch('/api/profile/save', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ code: editingCode, ...profileData }),
+  });
+
+  log(`Profile ${editingCode} updated`, 'info');
+  closeProfileModal();
+  refreshProfiles();
+}
+
+async function deleteProfile() {
+  if (!editingCode || !confirm(`Delete profile ${editingCode}? This cannot be undone.`)) return;
+  await deleteProfileDirect(editingCode);
+  closeProfileModal();
+}
+
+async function deleteProfileDirect(code) {
+  if (!confirm(`Delete profile ${code}?`)) return;
+  const r = await deleteJSON(`/api/admin/profiles/${code}`);
+  log(r.ok ? `Profile ${code} deleted` : `Failed: ${r.error}`, r.ok ? 'warn' : 'err');
+  refreshProfiles();
+}
+
+// ── Auto-refresh ──
+function refreshAll() {
+  refreshStatus();
+  refreshProfiles();
+}
+
+document.getElementById('refresh-toggle').addEventListener('change', (e) => {
+  if (e.target.checked) {
+    autoRefreshInterval = setInterval(refreshStatus, 5000);
+  } else {
+    clearInterval(autoRefreshInterval);
+  }
+});
+
+// ── Init ──
+refreshAll();
+log('Admin panel loaded', 'info');
+autoRefreshInterval = setInterval(refreshStatus, 5000);
+</script>
+</body>
+</html>

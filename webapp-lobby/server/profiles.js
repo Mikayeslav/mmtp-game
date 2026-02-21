@@ -120,7 +120,34 @@ function exists(code) {
   return !!db[code];
 }
 
+/**
+ * List all profiles (admin). Returns array of { code, name, avatar, stats, updatedAt }.
+ */
+function listAll() {
+  return Object.entries(db).map(([code, data]) => ({
+    code,
+    name: data.name || 'Unknown',
+    avatar: data.avatar || '🃏',
+    title: data.title || '',
+    stats: data.stats || {},
+    createdAt: data.createdAt,
+    updatedAt: data.updatedAt,
+    lastAccessed: data.lastAccessed,
+  }));
+}
+
+/**
+ * Delete a profile (admin).
+ */
+function remove(code) {
+  code = (code || '').toUpperCase().trim();
+  if (!db[code]) return { ok: false, error: 'Profile not found' };
+  delete db[code];
+  saveDB();
+  return { ok: true };
+}
+
 // Initialize
 loadDB();
 
-module.exports = { create, save, load, exists, generateCode };
+module.exports = { create, save, load, exists, generateCode, listAll, remove };

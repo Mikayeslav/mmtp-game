@@ -41,11 +41,18 @@
       const res = await fetch('/api/server-info');
       if (!res.ok) return;
       const info = await res.json();
-      App.serverLanUrl = info.url || window.location.origin;
-      console.log('[Lobby] Server URL:', App.serverLanUrl);
-      if (info.tunnelUrl) {
-        console.log('[Lobby] Public tunnel:', info.tunnelUrl);
+
+      // Determine the best shareable URL:
+      // - If on a deployed domain (not localhost), always use window.location.origin
+      // - If a tunnel URL is available, prefer that
+      // - Otherwise fall back to LAN URL
+      const isDeployed = !window.location.hostname.match(/^(localhost|127\.|192\.168\.|10\.)/);
+      if (isDeployed) {
+        App.serverLanUrl = window.location.origin;
+      } else {
+        App.serverLanUrl = info.tunnelUrl || info.url || window.location.origin;
       }
+      console.log('[Lobby] Server URL:', App.serverLanUrl, isDeployed ? '(deployed)' : '(local)');
 
       // Show the URL bar in the lobby
       if (serverUrlInfo) serverUrlInfo.classList.remove('hidden');
@@ -53,10 +60,12 @@
         serverUrlValue.textContent = App.serverLanUrl;
       }
 
-      // Update the label text based on whether it's a tunnel or LAN
+      // Update the label text based on context
       const label = serverUrlInfo?.querySelector('.server-url-label');
       if (label) {
-        if (info.tunnelUrl) {
+        if (isDeployed) {
+          label.textContent = '🌐 Share this URL:';
+        } else if (info.tunnelUrl) {
           label.textContent = '🌐 Public URL (anyone can join!):';
         } else {
           label.textContent = '🌐 Share this URL (same WiFi):';
@@ -65,7 +74,7 @@
 
       // Show tunnel password hint if present
       if (tunnelPasswordHint) {
-        if (info.tunnelPassword && info.tunnelUrl) {
+        if (info.tunnelPassword && info.tunnelUrl && !isDeployed) {
           const strongEl = tunnelPasswordHint.querySelector('strong');
           if (strongEl) strongEl.textContent = info.tunnelPassword;
           tunnelPasswordHint.classList.remove('hidden');
@@ -172,6 +181,9 @@
         isHost: p.isHost,
         playerId: p.playerId,
         connected: p.connected,
+        avatar: p.avatar || '🃏',
+        title: p.title || '',
+        rating: p.rating || 1000,
       }));
       state.rules = clampRules(roomState.rules || DEFAULTS);
       state.roomCode = roomState.code;
