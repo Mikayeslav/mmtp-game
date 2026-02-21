@@ -75,11 +75,13 @@ class GameEngine {
     // Send initial state to each player
     for (const player of this.room.players) {
       const pid = player.playerId;
-      this.sendTo(player.socketId, 'gameState', this._buildStateFor(pid));
+      const state = this._buildStateFor(pid);
+      console.log(`[GameEngine] Sending initial gameState to P${pid} "${player.name}" (socket:${player.socketId}, connected:${player.connected}, handSize:${state.myHand.length})`);
+      this.sendTo(player.socketId, 'gameState', state);
     }
 
     this._startTurnTimer();
-    console.log(`[GameEngine] Game started in room ${this.room.code}`);
+    console.log(`[GameEngine] Game started in room ${this.room.code} — deck:${this.deck.length}, P1 hand:${this.hands[1].length}, P2 hand:${this.hands[2].length}`);
   }
 
   /**

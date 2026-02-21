@@ -359,7 +359,11 @@ io.on('connection', (socket) => {
         // If game is active, send current game state
         const engine = activeGames.get(room.code);
         if (engine && room.gameStarted) {
-          sendToSocket(socket.id, 'gameState', engine._buildStateFor(player.playerId));
+          const state = engine._buildStateFor(player.playerId);
+          console.log(`[ROOM] Reconnection: sending gameState to P${player.playerId} "${player.name}" (socket:${socket.id}, handSize:${state.myHand.length})`);
+          sendToSocket(socket.id, 'gameState', state);
+        } else {
+          console.log(`[ROOM] Reconnection: no active game for room ${room.code} (engine:${!!engine}, started:${room.gameStarted})`);
         }
 
         return cb({

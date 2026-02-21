@@ -24,6 +24,7 @@
 
   // Alias shared state (objects are by-reference, always current)
   const gameState = GP.state;
+  const gameRules = GP.rules;
   const playfield = document.getElementById('playfield');
   const btnBackToLobby = document.getElementById('btn-back-to-lobby');
 
@@ -88,7 +89,10 @@
    */
   function applyServerState(serverState) {
     if (!serverState) return;
-    console.log('[Online] applyServerState called, myPlayerId from server:', serverState.myPlayerId);
+    console.log('[Online] applyServerState called, myPlayerId:', serverState.myPlayerId,
+      'handSize:', serverState.myHand?.length, 'oppHand:', serverState.opponentHandCount,
+      'target:', serverState.target, 'active:', serverState.activePlayer,
+      'deck:', serverState.deckCount);
 
     // Ensure online game mode is active
     GP.onlineGame = true;
