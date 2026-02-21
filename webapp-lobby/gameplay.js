@@ -3170,6 +3170,101 @@
     btnHelpTrigger.addEventListener('click', toggleHelp);
   }
 
+  // ── Leaderboard (gameplay page) ──
+  (function initLeaderboardGP() {
+    const lbModal = $('leaderboard-modal-gp');
+    const btnLb = $('btn-leaderboard-gp');
+    const btnCloseLb = $('btn-close-leaderboard-gp');
+    const lbBody = $('leaderboard-body-gp');
+    const lbLoading = $('leaderboard-loading-gp');
+    const lbEmpty = $('leaderboard-empty-gp');
+    const lbTableWrapper = $('leaderboard-table-wrapper-gp');
+    const btnRefresh = $('btn-lb-refresh-gp');
+    const lbUpdated = $('lb-last-updated-gp');
+    if (!lbModal || !btnLb) return;
+
+    let data = [];
+    let sort = 'rating';
+
+    function esc(str) {
+      return String(str).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    }
+
+    async function fetchLB() {
+      if (lbLoading) lbLoading.classList.remove('hidden');
+      if (lbEmpty) lbEmpty.classList.add('hidden');
+      if (lbTableWrapper) lbTableWrapper.classList.add('hidden');
+      try {
+        const res = await fetch('/api/leaderboard?limit=50');
+        const json = await res.json();
+        data = (json.ok && Array.isArray(json.leaderboard)) ? json.leaderboard : [];
+      } catch (e) { data = []; }
+      if (lbLoading) lbLoading.classList.add('hidden');
+      renderLB();
+    }
+
+    function renderLB() {
+      if (!lbBody) return;
+      const sorted = [...data];
+      switch (sort) {
+        case 'wins': sorted.sort((a, b) => b.wins - a.wins || b.rating - a.rating); break;
+        case 'winrate': sorted.sort((a, b) => (b.winrate ?? -1) - (a.winrate ?? -1) || b.wins - a.wins); break;
+        case 'level': sorted.sort((a, b) => b.level - a.level || b.rating - a.rating); break;
+        default: sorted.sort((a, b) => b.rating - a.rating || b.wins - a.wins);
+      }
+      if (sorted.length === 0) {
+        if (lbEmpty) lbEmpty.classList.remove('hidden');
+        if (lbTableWrapper) lbTableWrapper.classList.add('hidden');
+        return;
+      }
+      if (lbEmpty) lbEmpty.classList.add('hidden');
+      if (lbTableWrapper) lbTableWrapper.classList.remove('hidden');
+
+      const myCode = (localStorage.getItem('mmtp-profile-code') || '').toUpperCase();
+      lbBody.innerHTML = sorted.map((p, i) => {
+        const rank = i + 1;
+        const isMe = myCode && p.code === myCode;
+        const medalClass = rank === 1 ? 'lb-gold' : rank === 2 ? 'lb-silver' : rank === 3 ? 'lb-bronze' : '';
+        const medal = rank === 1 ? '🥇' : rank === 2 ? '🥈' : rank === 3 ? '🥉' : rank;
+        let rankBadge = '';
+        if (typeof MMProfile !== 'undefined') {
+          const r = MMProfile.getRank(p.rating);
+          rankBadge = `<span class="lb-rank-badge" style="color:${r.color}" title="${r.name}">${r.icon}</span>`;
+        }
+        const wr = p.winrate != null ? p.winrate + '%' : '—';
+        return `<tr class="${isMe ? 'lb-me' : ''} ${medalClass}">
+          <td class="lb-col-rank">${medal}</td>
+          <td class="lb-col-player"><span class="lb-avatar">${p.avatar}</span><span class="lb-name">${esc(p.name)}</span></td>
+          <td class="lb-col-rating">${rankBadge} ${p.rating}</td>
+          <td class="lb-col-level">${p.level}</td>
+          <td class="lb-col-record">${p.wins}/${p.losses}/${p.draws}</td>
+          <td class="lb-col-winrate">${wr}</td>
+          <td class="lb-col-streak">${p.bestWinStreak}</td>
+        </tr>`;
+      }).join('');
+      if (lbUpdated) lbUpdated.textContent = 'Updated ' + new Date().toLocaleTimeString();
+    }
+
+    function toggle() {
+      const hidden = lbModal.classList.contains('hidden');
+      lbModal.classList.toggle('hidden', !hidden);
+      if (hidden) fetchLB();
+    }
+
+    btnLb.addEventListener('click', toggle);
+    if (btnCloseLb) btnCloseLb.addEventListener('click', toggle);
+    lbModal.addEventListener('click', (e) => { if (e.target.classList.contains('modal-backdrop')) toggle(); });
+    if (btnRefresh) btnRefresh.addEventListener('click', fetchLB);
+    lbModal.querySelectorAll('.lb-tab').forEach(tab => {
+      tab.addEventListener('click', () => {
+        lbModal.querySelectorAll('.lb-tab').forEach(t => t.classList.remove('active'));
+        tab.classList.add('active');
+        sort = tab.dataset.sort || 'rating';
+        renderLB();
+      });
+    });
+  })();
+
   if (btnSkipBot) {
     btnSkipBot.addEventListener('click', () => {
       const isBotTurn = (gameRules.botP1 && gameState.activePlayer === 1) || 

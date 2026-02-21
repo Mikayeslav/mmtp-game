@@ -106,6 +106,12 @@ app.get('/api/server-info', (req, res) => {
   });
 });
 
+// ── Leaderboard API (public) ──
+app.get('/api/leaderboard', (req, res) => {
+  const limit = Math.min(Math.max(parseInt(req.query.limit, 10) || 50, 1), 100);
+  res.json({ ok: true, leaderboard: profiles.leaderboard(limit) });
+});
+
 // ── Profile API ──
 app.use(express.json()); // Parse JSON request bodies
 

@@ -1176,6 +1176,65 @@ body {
   transform: scale(1.1);
 }
 
+/* Leaderboard trigger button (bottom-left, next to help) */
+.btn-leaderboard-trigger {
+  position: fixed;
+  bottom: 20px;
+  left: 64px;
+  width: 36px;
+  height: 36px;
+  background: rgba(0,0,0,0.55);
+  border: 1px solid rgba(255,255,255,0.12);
+  border-radius: 50%;
+  color: rgba(255,255,255,0.7);
+  font-size: 16px;
+  cursor: pointer;
+  z-index: 50;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s;
+}
+.btn-leaderboard-trigger:hover {
+  background: rgba(74, 158, 255, 0.2);
+  border-color: var(--accent);
+  color: #fff;
+  transform: scale(1.1);
+}
+
+/* ── Leaderboard styles (gameplay page) ── */
+.leaderboard-modal-content { max-width: 640px; width: 95vw; }
+.leaderboard-tabs { display: flex; gap: 4px; margin-bottom: 12px; border-bottom: 1px solid var(--border); padding-bottom: 8px; }
+.lb-tab { padding: 6px 14px; border: 1px solid var(--border); border-radius: 6px; background: transparent; color: var(--text-secondary, #b0b0b8); font-size: 0.82rem; font-weight: 500; cursor: pointer; transition: all 0.15s; }
+.lb-tab:hover { background: var(--card-bg, #2e2e34); color: #fff; }
+.lb-tab.active { background: rgba(74,158,255,0.15); color: var(--accent, #4a9eff); border-color: var(--accent, #4a9eff); }
+.leaderboard-loading, .leaderboard-empty { text-align: center; padding: 32px 16px; color: var(--text-secondary, #b0b0b8); }
+.leaderboard-table-wrapper { max-height: 50vh; overflow-y: auto; border: 1px solid var(--border); border-radius: 6px; }
+.leaderboard-table { width: 100%; border-collapse: collapse; font-size: 0.85rem; }
+.leaderboard-table thead { position: sticky; top: 0; background: var(--bg, #242428); z-index: 1; }
+.leaderboard-table th { padding: 8px 10px; text-align: left; font-weight: 600; color: var(--text-secondary, #b0b0b8); font-size: 0.78rem; text-transform: uppercase; letter-spacing: 0.04em; border-bottom: 2px solid var(--border); }
+.leaderboard-table td { padding: 8px 10px; border-bottom: 1px solid var(--border); vertical-align: middle; }
+.leaderboard-table tbody tr { transition: background 0.12s; }
+.leaderboard-table tbody tr:hover { background: var(--card-bg, #2e2e34); }
+.leaderboard-table tbody tr.lb-me { background: rgba(74,158,255,0.15); font-weight: 600; }
+.leaderboard-table tbody tr.lb-me td { color: var(--accent, #4a9eff); }
+.leaderboard-table tbody tr.lb-gold td:first-child { color: #ffd700; font-weight: 700; }
+.leaderboard-table tbody tr.lb-silver td:first-child { color: #c0c0c0; font-weight: 700; }
+.leaderboard-table tbody tr.lb-bronze td:first-child { color: #cd7f32; font-weight: 700; }
+.lb-col-rank { width: 40px; text-align: center; font-weight: 600; }
+.lb-col-player { display: flex; align-items: center; gap: 6px; min-width: 100px; }
+.lb-avatar { font-size: 1.2rem; flex-shrink: 0; }
+.lb-name { font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100px; }
+.lb-title { font-size: 0.72rem; color: var(--text-muted, #707078); }
+.lb-rank-badge { font-size: 0.9rem; margin-right: 2px; }
+.lb-col-rating { font-weight: 600; white-space: nowrap; }
+.lb-col-level { text-align: center; }
+.lb-col-record { white-space: nowrap; font-variant-numeric: tabular-nums; }
+.lb-col-winrate { text-align: center; font-variant-numeric: tabular-nums; }
+.lb-col-streak { text-align: center; }
+.leaderboard-footer { display: flex; align-items: center; justify-content: space-between; margin-top: 10px; }
+.lb-meta { font-size: 0.75rem; color: var(--text-muted, #707078); }
+
 /* Win streak badge in HUD */
 .streak-display {
   display: flex;

@@ -1905,6 +1905,135 @@
   }
 
   // ══════════════════════════════════════════════════════════════
+  // ── Leaderboard ──
+  // ══════════════════════════════════════════════════════════════
+  const leaderboardModal = $('leaderboard-modal');
+  const btnLeaderboard = $('btn-leaderboard');
+  const btnCloseLeaderboard = $('btn-close-leaderboard');
+  const leaderboardBody = $('leaderboard-body');
+  const leaderboardLoading = $('leaderboard-loading');
+  const leaderboardEmpty = $('leaderboard-empty');
+  const leaderboardTableWrapper = $('leaderboard-table-wrapper');
+  const btnLbRefresh = $('btn-lb-refresh');
+  const lbLastUpdated = $('lb-last-updated');
+
+  let lbData = [];
+  let lbSort = 'rating';
+
+  async function fetchLeaderboard() {
+    if (leaderboardLoading) leaderboardLoading.classList.remove('hidden');
+    if (leaderboardEmpty) leaderboardEmpty.classList.add('hidden');
+    if (leaderboardTableWrapper) leaderboardTableWrapper.classList.add('hidden');
+    try {
+      const res = await fetch('/api/leaderboard?limit=50');
+      const json = await res.json();
+      if (json.ok && Array.isArray(json.leaderboard)) {
+        lbData = json.leaderboard;
+      } else {
+        lbData = [];
+      }
+    } catch (e) {
+      console.warn('[Leaderboard] fetch failed:', e);
+      lbData = [];
+    }
+    if (leaderboardLoading) leaderboardLoading.classList.add('hidden');
+    renderLeaderboard();
+  }
+
+  function renderLeaderboard() {
+    if (!leaderboardBody) return;
+
+    // Sort data
+    const sorted = [...lbData];
+    switch (lbSort) {
+      case 'wins':
+        sorted.sort((a, b) => b.wins - a.wins || b.rating - a.rating);
+        break;
+      case 'winrate':
+        sorted.sort((a, b) => (b.winrate ?? -1) - (a.winrate ?? -1) || b.wins - a.wins);
+        break;
+      case 'level':
+        sorted.sort((a, b) => b.level - a.level || b.rating - a.rating);
+        break;
+      default: // 'rating'
+        sorted.sort((a, b) => b.rating - a.rating || b.wins - a.wins);
+    }
+
+    if (sorted.length === 0) {
+      if (leaderboardEmpty) leaderboardEmpty.classList.remove('hidden');
+      if (leaderboardTableWrapper) leaderboardTableWrapper.classList.add('hidden');
+      return;
+    }
+
+    if (leaderboardEmpty) leaderboardEmpty.classList.add('hidden');
+    if (leaderboardTableWrapper) leaderboardTableWrapper.classList.remove('hidden');
+
+    // Get local player's profile code to highlight their row
+    const myCode = localStorage.getItem(STORAGE_PROFILE_CODE) || '';
+
+    leaderboardBody.innerHTML = sorted.map((p, i) => {
+      const rank = i + 1;
+      const isMe = myCode && p.code === myCode.toUpperCase();
+      const medalClass = rank === 1 ? 'lb-gold' : rank === 2 ? 'lb-silver' : rank === 3 ? 'lb-bronze' : '';
+      const medal = rank === 1 ? '🥇' : rank === 2 ? '🥈' : rank === 3 ? '🥉' : rank;
+      // Get rank badge from MMProfile if available
+      let rankBadge = '';
+      if (typeof MMProfile !== 'undefined') {
+        const r = MMProfile.getRank(p.rating);
+        rankBadge = `<span class="lb-rank-badge" style="color:${r.color}" title="${r.name}">${r.icon}</span>`;
+      }
+      const wr = p.winrate != null ? p.winrate + '%' : '—';
+      return `<tr class="${isMe ? 'lb-me' : ''} ${medalClass}">
+        <td class="lb-col-rank">${medal}</td>
+        <td class="lb-col-player">
+          <span class="lb-avatar">${p.avatar}</span>
+          <span class="lb-name">${escapeHtml(p.name)}</span>
+          ${p.title ? `<span class="lb-title">${escapeHtml(p.title)}</span>` : ''}
+        </td>
+        <td class="lb-col-rating">${rankBadge} ${p.rating}</td>
+        <td class="lb-col-level">${p.level}</td>
+        <td class="lb-col-record">${p.wins}/${p.losses}/${p.draws}</td>
+        <td class="lb-col-winrate">${wr}</td>
+        <td class="lb-col-streak">${p.bestWinStreak}</td>
+      </tr>`;
+    }).join('');
+
+    if (lbLastUpdated) {
+      lbLastUpdated.textContent = 'Updated ' + new Date().toLocaleTimeString();
+    }
+  }
+
+  function escapeHtml(str) {
+    return String(str).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+  }
+
+  function toggleLeaderboard() {
+    if (!leaderboardModal) return;
+    const isHidden = leaderboardModal.classList.contains('hidden');
+    leaderboardModal.classList.toggle('hidden', !isHidden);
+    if (isHidden) fetchLeaderboard();
+  }
+
+  if (btnLeaderboard) btnLeaderboard.addEventListener('click', toggleLeaderboard);
+  if (btnCloseLeaderboard) btnCloseLeaderboard.addEventListener('click', toggleLeaderboard);
+  if (leaderboardModal) {
+    leaderboardModal.addEventListener('click', (e) => {
+      if (e.target.classList.contains('modal-backdrop')) toggleLeaderboard();
+    });
+  }
+  if (btnLbRefresh) btnLbRefresh.addEventListener('click', fetchLeaderboard);
+
+  // Tab switching
+  document.querySelectorAll('.lb-tab').forEach(tab => {
+    tab.addEventListener('click', () => {
+      document.querySelectorAll('.lb-tab').forEach(t => t.classList.remove('active'));
+      tab.classList.add('active');
+      lbSort = tab.dataset.sort || 'rating';
+      renderLeaderboard();
+    });
+  });
+
+  // ══════════════════════════════════════════════════════════════
   // ── Profile Card — Avatar / Title / Bio pickers ──
   // ══════════════════════════════════════════════════════════════
   (function initProfileCard() {

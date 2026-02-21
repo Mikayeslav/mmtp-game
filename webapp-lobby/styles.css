@@ -2343,3 +2343,171 @@ body {
 .achievement-toast .achievement-toast-icon {
   font-size: 1.4rem;
 }
+
+/* ══════════════════════════════════════════════════════════════ */
+/* ── Leaderboard Modal ──                                       */
+/* ══════════════════════════════════════════════════════════════ */
+.leaderboard-modal-content {
+  max-width: 640px;
+  width: 95vw;
+}
+
+.leaderboard-tabs {
+  display: flex;
+  gap: 4px;
+  margin-bottom: 12px;
+  border-bottom: 1px solid var(--border);
+  padding-bottom: 8px;
+}
+
+.lb-tab {
+  padding: 6px 14px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--text-secondary);
+  font-size: 0.82rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+.lb-tab:hover { background: var(--bg-tertiary); color: var(--text-primary); }
+.lb-tab.active {
+  background: var(--accent-dim);
+  color: var(--accent);
+  border-color: var(--accent);
+}
+
+.leaderboard-loading,
+.leaderboard-empty {
+  text-align: center;
+  padding: 32px 16px;
+  color: var(--text-secondary);
+  font-size: 0.95rem;
+}
+
+.leaderboard-table-wrapper {
+  max-height: 50vh;
+  overflow-y: auto;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+}
+
+.leaderboard-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.85rem;
+}
+
+.leaderboard-table thead {
+  position: sticky;
+  top: 0;
+  background: var(--bg-secondary);
+  z-index: 1;
+}
+
+.leaderboard-table th {
+  padding: 8px 10px;
+  text-align: left;
+  font-weight: 600;
+  color: var(--text-secondary);
+  font-size: 0.78rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  border-bottom: 2px solid var(--border);
+}
+
+.leaderboard-table td {
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--border);
+  vertical-align: middle;
+}
+
+.leaderboard-table tbody tr {
+  transition: background 0.12s;
+}
+.leaderboard-table tbody tr:hover {
+  background: var(--bg-tertiary);
+}
+
+/* Highlight current player */
+.leaderboard-table tbody tr.lb-me {
+  background: var(--accent-dim);
+  font-weight: 600;
+}
+.leaderboard-table tbody tr.lb-me td {
+  color: var(--accent);
+}
+
+/* Medal rows */
+.leaderboard-table tbody tr.lb-gold td:first-child { color: #ffd700; font-weight: 700; }
+.leaderboard-table tbody tr.lb-silver td:first-child { color: #c0c0c0; font-weight: 700; }
+.leaderboard-table tbody tr.lb-bronze td:first-child { color: #cd7f32; font-weight: 700; }
+
+.lb-col-rank {
+  width: 40px;
+  text-align: center;
+  font-weight: 600;
+}
+
+.lb-col-player {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 120px;
+}
+
+.lb-avatar {
+  font-size: 1.2rem;
+  flex-shrink: 0;
+}
+
+.lb-name {
+  font-weight: 500;
+  color: var(--text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 100px;
+}
+
+.lb-title {
+  font-size: 0.72rem;
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+
+.lb-rank-badge {
+  font-size: 0.9rem;
+  margin-right: 2px;
+}
+
+.lb-col-rating { font-weight: 600; white-space: nowrap; }
+.lb-col-level { text-align: center; }
+.lb-col-record { white-space: nowrap; font-variant-numeric: tabular-nums; }
+.lb-col-winrate { text-align: center; font-variant-numeric: tabular-nums; }
+.lb-col-streak { text-align: center; }
+
+.leaderboard-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: 10px;
+  padding-top: 8px;
+}
+
+.lb-meta {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+}
+
+/* Responsive tweaks */
+@media (max-width: 500px) {
+  .leaderboard-table { font-size: 0.78rem; }
+  .leaderboard-table th,
+  .leaderboard-table td { padding: 6px 6px; }
+  .lb-col-streak,
+  .lb-title { display: none; }
+  .lb-name { max-width: 70px; }
+  .leaderboard-modal-content { width: 98vw; }
+}

@@ -111,9 +111,10 @@
           </div>
         </div>
 
-        <!-- Player Panel Actions (achievements, sign out) -->
+        <!-- Player Panel Actions (achievements, leaderboard, sign out) -->
         <div class="player-panel-actions">
           <button id="btn-achievements" class="btn btn-small btn-tool">🏆 Achievements</button>
+          <button id="btn-leaderboard" class="btn btn-small btn-tool">📊 Leaderboard</button>
           <button id="btn-sign-out" class="btn btn-small btn-danger-small" title="Clear profile & sign out">🚪 Sign Out</button>
         </div>
 
@@ -607,6 +608,47 @@
           <div class="achievements-progress-bar"><div id="achievements-progress-fill" class="achievements-progress-fill"></div></div>
         </div>
         <div id="achievements-list" class="achievements-list"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Leaderboard Modal -->
+  <div id="leaderboard-modal" class="modal hidden">
+    <div class="modal-backdrop"></div>
+    <div class="modal-content leaderboard-modal-content">
+      <div class="modal-header">
+        <h2>📊 Leaderboard</h2>
+        <button id="btn-close-leaderboard" class="btn-close">&times;</button>
+      </div>
+      <div class="modal-body">
+        <div class="leaderboard-tabs">
+          <button class="lb-tab active" data-sort="rating">Rating</button>
+          <button class="lb-tab" data-sort="wins">Wins</button>
+          <button class="lb-tab" data-sort="winrate">Win Rate</button>
+          <button class="lb-tab" data-sort="level">Level</button>
+        </div>
+        <div id="leaderboard-loading" class="leaderboard-loading hidden">Loading...</div>
+        <div id="leaderboard-empty" class="leaderboard-empty hidden">No players on the leaderboard yet. Play some games!</div>
+        <div id="leaderboard-table-wrapper" class="leaderboard-table-wrapper">
+          <table class="leaderboard-table">
+            <thead>
+              <tr>
+                <th class="lb-col-rank">#</th>
+                <th class="lb-col-player">Player</th>
+                <th class="lb-col-rating">Rating</th>
+                <th class="lb-col-level">Lv</th>
+                <th class="lb-col-record">W/L/D</th>
+                <th class="lb-col-winrate">WR%</th>
+                <th class="lb-col-streak">Streak</th>
+              </tr>
+            </thead>
+            <tbody id="leaderboard-body"></tbody>
+          </table>
+        </div>
+        <div class="leaderboard-footer">
+          <button id="btn-lb-refresh" class="btn btn-small btn-tool">🔄 Refresh</button>
+          <span id="lb-last-updated" class="lb-meta"></span>
+        </div>
       </div>
     </div>
   </div>

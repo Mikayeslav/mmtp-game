@@ -150,4 +150,43 @@ function remove(code) {
 // Initialize
 loadDB();
 
-module.exports = { create, save, load, exists, generateCode, listAll, remove };
+/**
+ * Get leaderboard: top players sorted by rating, then by wins.
+ * @param {number} limit - max entries (default 50)
+ * @returns {Array<{ rank, code, name, avatar, title, rating, level, wins, losses, draws, winrate, games }>}
+ */
+function leaderboard(limit = 50) {
+  const entries = Object.entries(db)
+    .map(([code, data]) => {
+      const s = data.stats || {};
+      const games = (s.wins || 0) + (s.losses || 0) + (s.draws || 0);
+      return {
+        code,
+        name: data.name || 'Unknown',
+        avatar: data.avatar || '🃏',
+        title: data.title || '',
+        rating: s.rating || 1000,
+        level: s.level || 1,
+        wins: s.wins || 0,
+        losses: s.losses || 0,
+        draws: s.draws || 0,
+        games,
+        winrate: games > 0 ? Math.round(100 * (s.wins || 0) / games) : null,
+        bestWinStreak: s.bestWinStreak || 0,
+      };
+    })
+    // Only include players who have played at least 1 game
+    .filter(e => e.games > 0)
+    .sort((a, b) => {
+      if (b.rating !== a.rating) return b.rating - a.rating;
+      if (b.wins !== a.wins) return b.wins - a.wins;
+      return b.games - a.games;
+    })
+    .slice(0, limit);
+
+  // Add rank position
+  entries.forEach((e, i) => { e.rank = i + 1; });
+  return entries;
+}
+
+module.exports = { create, save, load, exists, generateCode, listAll, remove, leaderboard };
