@@ -1401,6 +1401,82 @@ body {
   box-shadow: 0 10px 24px rgba(0,0,0,0.55);
 }
 
+/* ── Connection Status Overlay ── */
+.connection-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 3000;
+  display: flex;
+  justify-content: center;
+  padding: 0;
+  pointer-events: none;
+  animation: connOverlaySlideIn 0.3s ease-out;
+}
+.connection-overlay.hidden { display: none; }
+
+.connection-overlay-content {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 20px;
+  background: rgba(30, 30, 36, 0.92);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  border: 1px solid rgba(255, 183, 77, 0.35);
+  border-top: none;
+  border-radius: 0 0 12px 12px;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.5);
+  pointer-events: auto;
+}
+
+.connection-overlay.connection-lost .connection-overlay-content {
+  border-color: rgba(239, 83, 80, 0.5);
+}
+
+.connection-overlay.connection-opponent .connection-overlay-content {
+  border-color: rgba(255, 183, 77, 0.4);
+}
+
+.connection-spinner {
+  width: 16px;
+  height: 16px;
+  border: 2px solid rgba(255,255,255,0.2);
+  border-top-color: var(--warning);
+  border-radius: 50%;
+  animation: connSpin 0.8s linear infinite;
+}
+
+.connection-lost .connection-spinner {
+  border-top-color: var(--error);
+}
+
+.connection-overlay-text {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--warning);
+}
+
+.connection-lost .connection-overlay-text {
+  color: var(--error);
+}
+
+.connection-overlay-countdown {
+  font-size: 12px;
+  color: var(--text-dim);
+  font-family: 'Consolas', monospace;
+}
+
+@keyframes connOverlaySlideIn {
+  from { transform: translateY(-100%); opacity: 0; }
+  to { transform: translateY(0); opacity: 1; }
+}
+
+@keyframes connSpin {
+  to { transform: rotate(360deg); }
+}
+
 /* Turn Banner */
 .turn-banner {
   position: fixed;
@@ -2611,7 +2687,27 @@ body {
   display: flex;
   flex-direction: column;
   box-shadow: 4px 0 20px rgba(0,0,0,0.4);
-  backdrop-filter: blur(12px);
+  transition: opacity 0.3s ease, background 0.3s ease;
+}
+
+/* Semi-transparent mode: chat visible but see-through */
+.chat-panel.chat-semi-transparent .chat-content {
+  background: rgba(20, 20, 28, 0.45);
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+  border-color: rgba(255,255,255,0.06);
+  box-shadow: 2px 0 12px rgba(0,0,0,0.2);
+}
+.chat-panel.chat-semi-transparent .chat-header {
+  background: rgba(0,0,0,0.15);
+}
+.chat-panel.chat-semi-transparent .chat-input-bar {
+  background: rgba(0,0,0,0.2);
+}
+.chat-panel.chat-semi-transparent:hover .chat-content {
+  background: rgba(30, 30, 36, 0.82);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
 }
 
 .chat-header {

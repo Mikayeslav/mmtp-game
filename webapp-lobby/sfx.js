@@ -224,6 +224,61 @@ const SFX = (() => {
       osc(ac, 'sine', 1500, t + 0.06, 0.08, 0.12);
       osc(ac, 'sine', 1800, t + 0.12, 0.1, 0.1);
     },
+
+    // Level up / achievement — ascending triumphant arpeggio
+    levelUp() {
+      const ac = getCtx(); if (!ac) return;
+      const t = ac.currentTime;
+      osc(ac, 'sine', 523, t, 0.12, 0.3);          // C5
+      osc(ac, 'sine', 659, t + 0.1, 0.12, 0.3);    // E5
+      osc(ac, 'sine', 784, t + 0.2, 0.12, 0.3);    // G5
+      osc(ac, 'sine', 1047, t + 0.3, 0.2, 0.35);   // C6
+      osc(ac, 'triangle', 1319, t + 0.4, 0.3, 0.2); // E6 shimmer
+      osc(ac, 'sine', 1568, t + 0.5, 0.35, 0.15);  // G6
+    },
+
+    // Rehand — shuffling scatter sound
+    rehand() {
+      const ac = getCtx(); if (!ac) return;
+      const t = ac.currentTime;
+      // Quick scatter noise
+      for (let i = 0; i < 4; i++) {
+        noise(ac, t + i * 0.05, 0.08, 0.15 - i * 0.02);
+      }
+      // Descending tone (cards leaving)
+      osc(ac, 'sine', 500, t, 0.12, 0.2);
+      osc(ac, 'sine', 350, t + 0.1, 0.12, 0.15);
+      // Pause then ascending tone (new cards arriving)
+      osc(ac, 'sine', 400, t + 0.35, 0.1, 0.2);
+      osc(ac, 'sine', 600, t + 0.45, 0.1, 0.2);
+      osc(ac, 'sine', 800, t + 0.55, 0.15, 0.15);
+    },
+
+    // Opponent disconnected — warning tone
+    disconnect() {
+      const ac = getCtx(); if (!ac) return;
+      const t = ac.currentTime;
+      osc(ac, 'sine', 440, t, 0.15, 0.25);
+      osc(ac, 'sine', 370, t + 0.15, 0.2, 0.2);
+      osc(ac, 'square', 330, t + 0.35, 0.25, 0.1);
+    },
+
+    // Reconnected — hopeful ascending
+    reconnected() {
+      const ac = getCtx(); if (!ac) return;
+      const t = ac.currentTime;
+      osc(ac, 'sine', 440, t, 0.1, 0.2);
+      osc(ac, 'sine', 554, t + 0.1, 0.1, 0.2);
+      osc(ac, 'sine', 659, t + 0.2, 0.15, 0.25);
+    },
+
+    // Chat message received — soft notification
+    chatMessage() {
+      const ac = getCtx(); if (!ac) return;
+      const t = ac.currentTime;
+      osc(ac, 'sine', 900, t, 0.05, 0.12);
+      osc(ac, 'sine', 1100, t + 0.04, 0.06, 0.1);
+    },
   };
 
   // ── Public API ──

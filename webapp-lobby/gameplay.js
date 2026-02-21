@@ -415,9 +415,9 @@
     const item = document.createElement('div');
     item.className = 'expr-history-item';
     item.innerHTML = `
-      <div class="expr-player p${playerId}">${playerName}</div>
-      <div class="expr-text">${exprStr} = ${value}</div>
-      <div class="expr-meta">Target: ${target} · Round ${roundNum}</div>
+      <div class="expr-player p${playerId}">${escapeHtml(playerName)}</div>
+      <div class="expr-text">${escapeHtml(String(exprStr))} = ${escapeHtml(String(value))}</div>
+      <div class="expr-meta">Target: ${escapeHtml(String(target))} · Round ${roundNum}</div>
     `;
 
     if (exprHistoryList) {
@@ -446,9 +446,9 @@
     const item = document.createElement('div');
     item.className = 'expr-history-item';
     item.innerHTML = `
-      <div class="expr-player p${playerId}">${playerName}</div>
-      <div class="expr-text">${escapeHtml(exprStr)} = ${target}</div>
-      <div class="expr-meta">Target: ${target} · Round ${round}</div>
+      <div class="expr-player p${playerId}">${escapeHtml(playerName)}</div>
+      <div class="expr-text">${escapeHtml(exprStr)} = ${escapeHtml(String(target))}</div>
+      <div class="expr-meta">Target: ${escapeHtml(String(target))} · Round ${round}</div>
     `;
     if (exprHistoryList) {
       exprHistoryList.appendChild(item);
@@ -484,13 +484,29 @@
     if (!onlineGame || !chatPanel) return;
     chatPanel.classList.remove('hidden');
 
+    // Auto-expand chat in semi-transparent mode for multiplayer
+    chatPanel.classList.remove('collapsed');
+    chatPanel.classList.add('chat-semi-transparent');
+
+    // Auto-collapse after 8s if no messages yet
+    const autoCollapseTimer = setTimeout(() => {
+      if (chatMessages && chatMessages.children.length === 0) {
+        chatPanel.classList.add('collapsed');
+        chatPanel.classList.remove('chat-semi-transparent');
+      }
+    }, 8000);
+
     if (btnToggleChat) {
       btnToggleChat.addEventListener('click', () => {
+        clearTimeout(autoCollapseTimer);
         chatPanel.classList.toggle('collapsed');
         if (!chatPanel.classList.contains('collapsed')) {
+          chatPanel.classList.add('chat-semi-transparent');
           chatUnreadCount = 0;
           if (chatBadge) { chatBadge.textContent = '0'; chatBadge.classList.add('hidden'); }
           if (chatInput) chatInput.focus();
+        } else {
+          chatPanel.classList.remove('chat-semi-transparent');
         }
       });
     }
@@ -540,7 +556,7 @@
         chatBadge.textContent = chatUnreadCount;
         chatBadge.classList.remove('hidden');
       }
-      if (window.SFX) SFX.play('buttonClick');
+      if (window.SFX) SFX.play('chatMessage');
     }
   }
 
@@ -2200,6 +2216,7 @@
     gameState.turnTimerStart = gameRules.turnTimerSec; // Reset start time
     gameState.actualTimeElapsed = 0; // Reset elapsed time
     gameState.drawsThisTurn = 0;
+    gameState._lastTickSec = -1; // Reset tick guard for new turn
     updateTimer();
     
     // Restart timer interval for new turn
@@ -2696,11 +2713,12 @@
       displaySec = actualSec;
     }
 
-    // Timer tick sounds (only once per second, only for human player's turn)
-    if (window.SFX && !timerInfinite && gameState.activePlayer === myPlayerId) {
-      if (displaySec <= 5) {
+    // Timer tick sounds (strictly once per second, only for human player's turn)
+    if (window.SFX && !timerInfinite && gameState.activePlayer === myPlayerId && displaySec !== gameState._lastTickSec) {
+      gameState._lastTickSec = displaySec;
+      if (displaySec > 0 && displaySec <= 5) {
         SFX.play('timerUrgent');
-      } else if (displaySec <= 10) {
+      } else if (displaySec > 5 && displaySec <= 10) {
         SFX.play('timerTick');
       }
     }
@@ -3098,42 +3116,65 @@
     
     const player = gameState.players[playerId - 1];
     const originalHandSize = player.hand.length;
-    
-    // Discard entire hand (instant, no animation)
+    const targetHand = playerId === 1 ? cardsP1 : cardsP2;
+
+    // Play rehand SFX
+    if (window.SFX) SFX.play('rehand');
+
+    // ── Scatter animation: fan existing cards outward before discarding ──
+    if (targetHand && localStorage.getItem('mmtp-card-animations') !== 'false') {
+      const cards = targetHand.querySelectorAll('.card');
+      cards.forEach((el, i) => {
+        const angle = (Math.random() * 60 - 30);
+        const dist = 80 + Math.random() * 120;
+        const dx = Math.cos(angle * Math.PI / 180) * dist * (i % 2 === 0 ? 1 : -1);
+        const dy = -(40 + Math.random() * 60);
+        el.style.transition = 'none';
+        el.animate([
+          { transform: 'translate(0,0) rotate(0deg) scale(1)', opacity: 1 },
+          { transform: `translate(${dx}px,${dy}px) rotate(${angle}deg) scale(0.6)`, opacity: 0 },
+        ], { duration: 350, easing: 'ease-out', fill: 'forwards' });
+      });
+    }
+
+    // Discard entire hand
     player.hand.forEach((card) => {
       gameState.discardPile.push(card);
-      // Track cards discarded
       gameState.matchStats.players[playerId - 1].cardsDiscarded++;
     });
     player.hand = [];
-    // Track rehand used
     gameState.matchStats.players[playerId - 1].rehandsUsed++;
     
     // Determine how many cards to draw on rehand
     let toDraw = gameRules.rehandDrawCount || 0;
     if (toDraw <= 0) {
-      // 0 = refill to configured hand size
       toDraw = gameRules.handSize || originalHandSize || 5;
     }
-    
-    // Draw new hand
-    for (let i = 0; i < toDraw; i++) {
-      const c = drawCard(playerId);
-      if (c) {
-        // quick burst animation
-        animateCardFly(btnDraw, playerId === 1 ? cardsP1 : cardsP2, c.type === CardType.Number ? String(c.value) : 'OP');
+
+    // Delay new card draw so scatter animation completes first
+    const drawDelay = localStorage.getItem('mmtp-card-animations') !== 'false' ? 380 : 0;
+    setTimeout(() => {
+      // Draw new hand
+      for (let i = 0; i < toDraw; i++) {
+        const c = drawCard(playerId);
+        if (c) {
+          // Staggered deal-in animation
+          setTimeout(() => {
+            animateCardFly(btnDraw, targetHand, c.type === CardType.Number ? String(c.value) : 'OP');
+          }, i * 60);
+        }
       }
-    }
-    
-    if (localStorage.getItem('mmtp-auto-sort-hand') === 'true') {
-      sortHand(playerId);
-    }
-    renderHands();
-    updateDeckCount();
-    clearSelection();
-    
-    // End turn immediately
-    endTurn();
+      
+      if (localStorage.getItem('mmtp-auto-sort-hand') === 'true') {
+        sortHand(playerId);
+      }
+      renderHands();
+      updateDeckCount();
+      clearSelection();
+      
+      // End turn immediately
+      endTurn();
+    }, drawDelay);
   }
 
   // Click timer to end turn

@@ -166,6 +166,15 @@
     <!-- Toast (replaces browser alert popups) -->
     <div id="toast" class="toast hidden" role="status" aria-live="polite"></div>
 
+    <!-- Connection status overlay -->
+    <div id="connection-overlay" class="connection-overlay hidden" role="alert" aria-live="assertive">
+      <div class="connection-overlay-content">
+        <div class="connection-spinner"></div>
+        <div id="connection-overlay-text" class="connection-overlay-text">Reconnecting…</div>
+        <div id="connection-overlay-countdown" class="connection-overlay-countdown"></div>
+      </div>
+    </div>
+
     <!-- XP Notifications (Call of Duty style) -->
     <div id="xp-notifications" class="xp-notifications" aria-live="polite"></div>
 

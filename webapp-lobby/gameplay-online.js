@@ -28,8 +28,44 @@
   const playfield = document.getElementById('playfield');
   const btnBackToLobby = document.getElementById('btn-back-to-lobby');
 
+  // Connection overlay elements
+  const connOverlay = document.getElementById('connection-overlay');
+  const connText = document.getElementById('connection-overlay-text');
+  const connCountdown = document.getElementById('connection-overlay-countdown');
+  let oppDisconnectTimer = null;
+  let oppDisconnectCountdown = null;
+
   // Track whether we've received at least one gameState from the server
   let receivedServerState = false;
+
+  // ── Connection overlay helpers ──
+  function showConnectionOverlay(text, type) {
+    if (!connOverlay) return;
+    connOverlay.classList.remove('hidden', 'connection-lost', 'connection-opponent');
+    if (type) connOverlay.classList.add(type);
+    if (connText) connText.textContent = text;
+    if (connCountdown) connCountdown.textContent = '';
+  }
+
+  function hideConnectionOverlay() {
+    if (connOverlay) connOverlay.classList.add('hidden');
+    clearOppDisconnectTimers();
+  }
+
+  function clearOppDisconnectTimers() {
+    if (oppDisconnectTimer) { clearTimeout(oppDisconnectTimer); oppDisconnectTimer = null; }
+    if (oppDisconnectCountdown) { clearInterval(oppDisconnectCountdown); oppDisconnectCountdown = null; }
+  }
+
+  function startOpponentDisconnectCountdown(graceSec) {
+    let remaining = graceSec;
+    if (connCountdown) connCountdown.textContent = `${remaining}s`;
+    oppDisconnectCountdown = setInterval(() => {
+      remaining--;
+      if (connCountdown) connCountdown.textContent = remaining > 0 ? `${remaining}s` : '';
+      if (remaining <= 0) clearInterval(oppDisconnectCountdown);
+    }, 1000);
+  }
 
   // ══════════════════════════════════════════════════════════════
   // ── Perspective Helpers ──
@@ -98,6 +134,9 @@
     GP.onlineGame = true;
     GP._receivedFirstState = true;
     receivedServerState = true;
+
+    // Clear opponent-disconnect overlay (state arrived → opponent is back)
+    hideConnectionOverlay();
 
     // ── Store real server player ID, set rendering ID to always 1 ──
     const sPid = serverState.myPlayerId;     // My real server ID (1 or 2)
@@ -447,19 +486,47 @@
 
     // ── playerDisconnected ──
     MMtpNet.on('playerDisconnected', () => {
-      GP.toast('Opponent disconnected — waiting…', 'warning');
+      GP.toast('Opponent disconnected — waiting for reconnect…', 'warning');
       GP.appendSystemChatMessage('Opponent disconnected');
+      if (window.SFX) SFX.play('disconnect');
+
+      // Show persistent overlay with 30s countdown
+      showConnectionOverlay('Opponent disconnected — waiting…', 'connection-opponent');
+      clearOppDisconnectTimers();
+      startOpponentDisconnectCountdown(30);
     });
 
     // ── playerLeft: opponent gone for good ──
     MMtpNet.on('playerLeft', (data) => {
+      hideConnectionOverlay();
       GP.toast(`${data.name || 'Player'} left the game`, 'error');
       GP.appendSystemChatMessage(`${data.name || 'Player'} left the game`);
+      if (window.SFX) SFX.play('disconnect');
       // If game is over and we're waiting for rematch, disable rematch button
       if (gameState.gameOver) {
         const btn = document.getElementById('btn-rematch');
         if (btn) { btn.textContent = 'Opponent Left'; btn.disabled = true; }
       }
+    });
+
+    // ── gameState also means opponent reconnected if overlay was showing ──
+    // (handled in applyServerState below via hideConnectionOverlay)
+
+    // ── Local socket disconnection/reconnection ──
+    MMtpNet.on('disconnected', () => {
+      showConnectionOverlay('Connection lost — reconnecting…', 'connection-lost');
+    });
+    MMtpNet.on('connected', () => {
+      if (connOverlay && !connOverlay.classList.contains('hidden')) {
+        hideConnectionOverlay();
+        GP.toast('Reconnected!', 'success');
+        if (window.SFX) SFX.play('reconnected');
+      }
+    });
+    MMtpNet.on('reconnected', () => {
+      hideConnectionOverlay();
+      GP.toast('Reconnected to game!', 'success');
+      if (window.SFX) SFX.play('reconnected');
     });
 
     // ════════════════════════════════════════════════════════════
