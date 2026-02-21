@@ -79,6 +79,11 @@ app.use(express.static(path.join(__dirname, '..'), {
   lastModified: IS_PRODUCTION,
 }));
 
+// Clean URL routes (/ already serves index.html via static)
+app.get('/play', (req, res) => {
+  res.sendFile(path.join(__dirname, '..', 'gameplay.html'));
+});
+
 // Health / info endpoint
 app.get('/api/status', (req, res) => {
   res.json({

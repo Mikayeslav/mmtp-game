@@ -162,9 +162,6 @@
   const shareSection = $('share-section');
   const qrCodeEl = $('qr-code');
   const tunnelPasswordHint = $('tunnel-password-hint');
-  const serverUrlInfo = $('server-url-info');
-  const serverUrlValue = $('server-url-value');
-  const btnCopyUrl = $('btn-copy-url');
   const xpFill = $('xp-fill');
   const readySummary = $('ready-summary');
   const player1Line = $('player-1-line');
@@ -172,7 +169,6 @@
   const player1Badges = $('player-1-badges');
   const player2Badges = $('player-2-badges');
   const simP2Control = $('sim-p2-control');
-  const btnSimP2Ready = $('btn-sim-p2-ready');
   const botDifficultySelect = $('bot-difficulty');
   const botDifficultyRow = $('bot-difficulty-row');
   const simulateP2Checkbox = $('simulate-p2');
@@ -209,7 +205,7 @@
   const btnCloseHelp = $('btn-close-help');
   const helpModal = $('help-modal');
   const loadingSpinner = $('loading-spinner');
-  // btnBack removed — game navigates to gameplay.html
+  // btnBack removed — game navigates to /play
   const statusEl = $('status');
   const btnToggleHintsInline = $('btn-toggle-hints-inline');
   const hintsInlineContent = $('hints-inline-content');
@@ -1145,7 +1141,7 @@
       const rulesEncoded = encodeURIComponent(rulesJson);
       const role = state.isHost ? 'host' : 'client';
       const roomCode = state.roomCode || '';
-      window.location.href = `gameplay.html?rules=${rulesEncoded}&role=${role}&room=${roomCode}`;
+      window.location.href = `/play?rules=${rulesEncoded}&role=${role}&room=${roomCode}`;
       return;
     }
     renderLobby();
@@ -1539,7 +1535,7 @@
       if (!res.ok) {
         setStatus('Failed to start: ' + (res.error || ''), 'error');
       }
-      // gameStarting event handler navigates to gameplay.html
+      // gameStarting event handler navigates to /play
       return;
     }
 
@@ -1618,7 +1614,7 @@
     const rulesEncoded = encodeURIComponent(rulesJson);
     const role = state.isHost ? 'host' : 'client';
     const roomCode = state.roomCode || '';
-    window.location.href = `gameplay.html?rules=${rulesEncoded}&role=${role}&room=${roomCode}`;
+    window.location.href = `/play?rules=${rulesEncoded}&role=${role}&room=${roomCode}`;
   }
 
   function onRulesChange() {
@@ -2163,7 +2159,7 @@
     }
   })();
 
-  // showGame/onBack removed — game navigates to gameplay.html directly
+  // showGame/onBack removed — game navigates to /play directly
 
   function toggleHelp() {
     if (!helpModal) return;
@@ -2287,37 +2283,17 @@
     });
   }
 
-  // Copy server URL button
-  if (btnCopyUrl) {
-    btnCopyUrl.addEventListener('click', function () {
-      const url = serverLanUrl || window.location.origin;
-      try {
-        navigator.clipboard.writeText(url);
-        btnCopyUrl.textContent = '✅ Copied!';
-        setStatus('Server URL copied!', 'success');
-        setTimeout(() => { btnCopyUrl.textContent = 'Copy'; }, 2500);
-      } catch (_) {
-        prompt('Copy this URL:', url);
-      }
-    });
-  }
 
   btnLeave.addEventListener('click', onLeave);
   btnReady.addEventListener('click', onReady);
   btnStart.addEventListener('click', onStart);
-  // btnBack removed — game navigates to gameplay.html
+  // btnBack removed — game navigates to /play
   if (btnHelp) btnHelp.addEventListener('click', toggleHelp);
   if (btnCloseHelp) {
     btnCloseHelp.addEventListener('click', toggleHelp);
     helpModal.querySelector('.modal-backdrop')?.addEventListener('click', toggleHelp);
   }
   if (btnResetRules) btnResetRules.addEventListener('click', onResetRules);
-  if (btnSimP2Ready) btnSimP2Ready.addEventListener('click', () => {
-    if (!state.simulateP2 || !state.isHost) return;
-    state.simulatedP2Ready = !state.simulatedP2Ready;
-    persistRoom();
-    renderLobby();
-  });
 
   // Lobby hints toggle
   if (btnToggleHintsInline) {
@@ -2714,8 +2690,6 @@
   App.dom = {
     playerNameInput,
     joinRoomCode,
-    serverUrlInfo,
-    serverUrlValue,
     tunnelPasswordHint,
     shareSection,
     inviteLinkPreview,

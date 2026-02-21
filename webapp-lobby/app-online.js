@@ -24,8 +24,6 @@
   // DOM elements from App namespace
   const playerNameInput = App.dom.playerNameInput;
   const joinRoomCode = App.dom.joinRoomCode;
-  const serverUrlInfo = App.dom.serverUrlInfo;
-  const serverUrlValue = App.dom.serverUrlValue;
   const tunnelPasswordHint = App.dom.tunnelPasswordHint;
   const shareSection = App.dom.shareSection;
   const inviteLinkPreview = App.dom.inviteLinkPreview;
@@ -57,23 +55,6 @@
       }
       console.log('[Lobby] Server URL:', App.serverLanUrl, isDeployed ? '(deployed)' : '(local)');
 
-      // Show the URL bar in the lobby
-      if (serverUrlInfo) serverUrlInfo.classList.remove('hidden');
-      if (serverUrlValue) {
-        serverUrlValue.textContent = App.serverLanUrl;
-      }
-
-      // Update the label text based on context
-      const label = serverUrlInfo?.querySelector('.server-url-label');
-      if (label) {
-        if (isDeployed) {
-          label.textContent = '🌐 Share this URL:';
-        } else if (info.tunnelUrl) {
-          label.textContent = '🌐 Public URL (anyone can join!):';
-        } else {
-          label.textContent = '🌐 Share this URL (same WiFi):';
-        }
-      }
 
       // Show tunnel password hint if present
       if (tunnelPasswordHint) {
@@ -206,7 +187,7 @@
       const rulesEncoded = encodeURIComponent(JSON.stringify(state.rules));
       const role = state.isHost ? 'host' : 'client';
       const roomCode = state.roomCode || data.roomCode || '';
-      window.location.href = `gameplay.html?rules=${rulesEncoded}&role=${role}&room=${roomCode}&online=1`;
+      window.location.href = `/play?rules=${rulesEncoded}&role=${role}&room=${roomCode}&online=1`;
     });
 
     MMtpNet.on('playerLeft', (data) => {
