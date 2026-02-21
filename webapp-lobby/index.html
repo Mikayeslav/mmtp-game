@@ -148,48 +148,50 @@
           </div>
         </details>
         
-        <!-- Match Stats Section -->
-        <div id="match-stats-section" class="match-stats-section hidden">
-          <h3>Last Match Stats</h3>
-          <div class="match-stats-grid">
-            <div class="stat-item">
-              <span class="stat-label">Cards Played:</span>
-              <span id="stat-match-played" class="stat-value">0</span>
+        <!-- Match Stats + Summary (foldable, hidden until a match is played) -->
+        <details id="match-stats-section" class="lobby-details match-stats-details hidden" open>
+          <summary class="lobby-summary"><h3>Last Match</h3></summary>
+          <div class="match-stats-inner">
+            <!-- Match Summary -->
+            <div id="match-summary-section" class="match-summary-section">
+              <div id="match-summary-result" class="match-summary-result"></div>
+              <div id="match-summary-details" class="match-summary-details"></div>
             </div>
-            <div class="stat-item">
-              <span class="stat-label">Cards Drawn:</span>
-              <span id="stat-match-drawn" class="stat-value">0</span>
-            </div>
-            <div class="stat-item">
-              <span class="stat-label">Cards Discarded:</span>
-              <span id="stat-match-discarded" class="stat-value">0</span>
-            </div>
-            <div class="stat-item">
-              <span class="stat-label">Expressions:</span>
-              <span id="stat-match-expressions" class="stat-value">0</span>
-            </div>
-            <div class="stat-item">
-              <span class="stat-label">Time Saved:</span>
-              <span id="stat-match-time-saved" class="stat-value">0s</span>
-            </div>
-            <div class="stat-item">
-              <span class="stat-label">Rehands:</span>
-              <span id="stat-match-rehands" class="stat-value">0</span>
+            <!-- Detailed Stats -->
+            <div class="match-stats-grid">
+              <div class="stat-item">
+                <span class="stat-label">Cards Played:</span>
+                <span id="stat-match-played" class="stat-value">0</span>
+              </div>
+              <div class="stat-item">
+                <span class="stat-label">Cards Drawn:</span>
+                <span id="stat-match-drawn" class="stat-value">0</span>
+              </div>
+              <div class="stat-item">
+                <span class="stat-label">Cards Discarded:</span>
+                <span id="stat-match-discarded" class="stat-value">0</span>
+              </div>
+              <div class="stat-item">
+                <span class="stat-label">Expressions:</span>
+                <span id="stat-match-expressions" class="stat-value">0</span>
+              </div>
+              <div class="stat-item">
+                <span class="stat-label">Time Saved:</span>
+                <span id="stat-match-time-saved" class="stat-value">0s</span>
+              </div>
+              <div class="stat-item">
+                <span class="stat-label">Rehands:</span>
+                <span id="stat-match-rehands" class="stat-value">0</span>
+              </div>
             </div>
           </div>
-        </div>
+        </details>
 
-        <!-- Match Summary Section -->
-        <div id="match-summary-section" class="match-summary-section hidden">
-          <div id="match-summary-result" class="match-summary-result"></div>
-          <div id="match-summary-details" class="match-summary-details"></div>
-        </div>
-
-        <!-- Match History -->
-        <div id="match-history-section" class="match-history-section hidden">
-          <h3>Match History</h3>
+        <!-- Match History (foldable, hidden until a match is played) -->
+        <details id="match-history-section" class="lobby-details match-history-details hidden" open>
+          <summary class="lobby-summary"><h3>Match History</h3></summary>
           <div id="match-history-list" class="match-history-list"></div>
-        </div>
+        </details>
 
         <!-- Player 2 Panel -->
         <div id="player-p2-panel" class="player-p2-panel hidden">

@@ -862,10 +862,13 @@ body {
   transition: width 0.3s ease;
 }
 
-.match-stats-section {
-  margin-top: 20px;
-  padding-top: 20px;
-  border-top: 1px solid var(--border);
+.match-stats-details,
+.match-history-details {
+  margin-top: 8px;
+}
+
+.match-stats-inner {
+  padding: 0;
 }
 
 .match-stats-section h3,
@@ -882,8 +885,8 @@ body {
 }
 
 .match-summary-section {
-  margin-top: 15px;
-  padding: 15px;
+  margin-bottom: 10px;
+  padding: 12px;
   background: var(--bg-tertiary);
   border-radius: 4px;
   border-left: 4px solid var(--accent);
@@ -908,12 +911,6 @@ body {
 }
 
 /* Match History */
-.match-history-section {
-  margin-top: 16px;
-  padding-top: 16px;
-  border-top: 1px solid var(--border);
-}
-
 .match-history-section h3 {
   font-size: 0.95rem;
   margin-bottom: 10px;
@@ -1739,50 +1736,6 @@ body {
 }
 .player-panel > .lobby-details > *:not(summary) {
   padding: 0;
-}
-
-/* Keep old collapsible-section styles for backward compat */
-.collapsible-section {
-  margin-bottom: 16px;
-}
-
-.section-toggle {
-  cursor: pointer;
-  user-select: none;
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  padding: 6px 0;
-  transition: color 0.2s;
-}
-
-.section-toggle:hover {
-  color: var(--accent);
-}
-
-.toggle-icon {
-  font-size: 0.65em;
-  transition: transform 0.2s;
-  display: inline-block;
-  width: 12px;
-  text-align: center;
-}
-
-.section-toggle.collapsed .toggle-icon {
-  transform: rotate(-90deg);
-}
-
-.section-body {
-  overflow: hidden;
-  transition: max-height 0.3s ease, opacity 0.2s ease;
-  max-height: 2000px;
-  opacity: 1;
-}
-
-.section-body.collapsed {
-  max-height: 0;
-  opacity: 0;
-  pointer-events: none;
 }
 
 /* ── Inline Reset Button (in rules header) ── */

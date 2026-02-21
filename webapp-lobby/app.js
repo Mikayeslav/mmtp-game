@@ -630,34 +630,27 @@
             statLast.textContent = `${result} ${score} (${duration})`;
           }
           
-          // Show match summary section
-          const matchSummarySection = $('match-summary-section');
-          if (matchSummarySection) {
-            matchSummarySection.classList.remove('hidden');
-            const summaryResult = $('match-summary-result');
-            const summaryDetails = $('match-summary-details');
-            if (summaryResult) {
-              summaryResult.textContent = `${result} ${score}`;
-              summaryResult.className = `match-summary-result ${result.toLowerCase()}`;
-            }
-            if (summaryDetails) {
-              const p1Stats = lastMatch.stats?.p1 || {};
-              const p2Stats = lastMatch.stats?.p2 || {};
-              summaryDetails.innerHTML = `
-                <div>Duration: ${duration}</div>
-                <div>Expressions: ${p1Stats.expressionsScored?.length || 0} scored</div>
-                <div>Cards: ${p1Stats.cardsPlayed || 0} played, ${p1Stats.cardsDrawn || 0} drawn</div>
-              `;
-            }
+          // Populate match summary
+          const summaryResult = $('match-summary-result');
+          const summaryDetails = $('match-summary-details');
+          if (summaryResult) {
+            summaryResult.textContent = `${result} ${score}`;
+            summaryResult.className = `match-summary-result ${result.toLowerCase()}`;
+          }
+          if (summaryDetails) {
+            const p1Stats = lastMatch.stats?.p1 || {};
+            summaryDetails.innerHTML = `
+              <div>Duration: ${duration}</div>
+              <div>Expressions: ${p1Stats.expressionsScored?.length || 0} scored</div>
+              <div>Cards: ${p1Stats.cardsPlayed || 0} played, ${p1Stats.cardsDrawn || 0} drawn</div>
+            `;
           }
           
-          // Show detailed match stats for P1
+          // Show the foldable Last Match section and populate stats
           if (matchStatsSection) {
             const p1Stats = lastMatch.stats?.p1 || {};
-            // Remove hidden class to show the section
             matchStatsSection.classList.remove('hidden');
             
-            // Populate all stat fields
             const statPlayed = $('stat-match-played');
             const statDrawn = $('stat-match-drawn');
             const statDiscarded = $('stat-match-discarded');
@@ -677,14 +670,7 @@
           }
         } else {
           if (statLast) statLast.textContent = s.lastPlayed ? new Date(s.lastPlayed).toLocaleString() : '—';
-          if (matchStatsSection) {
-            matchStatsSection.classList.add('hidden');
-          }
-          // Hide match summary too
-          const matchSummarySection = $('match-summary-section');
-          if (matchSummarySection) {
-            matchSummarySection.classList.add('hidden');
-          }
+          if (matchStatsSection) matchStatsSection.classList.add('hidden');
         }
       } catch (e) {
         console.error('[updatePlayerPanel] Error loading match history:', e);
@@ -2293,22 +2279,7 @@
     });
   }
 
-  // ── Collapsible Section Toggles ──
-  document.querySelectorAll('.section-toggle').forEach(toggle => {
-    const targetId = toggle.id.replace('-toggle', '-body');
-    const body = $(targetId);
-    if (!body) return;
-    // Initialize: if body has 'collapsed' class, set toggle state
-    if (body.classList.contains('collapsed')) {
-      toggle.classList.add('collapsed');
-    }
-    toggle.addEventListener('click', (e) => {
-      // Don't toggle if clicking a button inside the header (e.g. Reset)
-      if (e.target.closest('button') && e.target.closest('button') !== toggle) return;
-      const isCollapsed = body.classList.toggle('collapsed');
-      toggle.classList.toggle('collapsed', isCollapsed);
-    });
-  });
+  // (Collapsible section toggles removed — all sections now use native <details>)
 
   // ── Sign Out ──
   const btnSignOut = $('btn-sign-out');
