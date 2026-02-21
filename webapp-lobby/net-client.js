@@ -161,9 +161,19 @@
         'playerDisconnected',
         'playerLeft',
         'chat',
+        'serverBroadcast',
       ];
       serverEvents.forEach(evt => {
         socket.on(evt, (data) => emit(evt, data));
+      });
+
+      // Show admin broadcasts as an alert/toast
+      socket.on('serverBroadcast', (data) => {
+        if (data && data.message) {
+          console.log('[MMtpNet] Server broadcast:', data.message);
+          // Show as a native alert so it's visible regardless of which page we're on
+          alert(`📢 Server Message:\n${data.message}`);
+        }
       });
     });
   }

@@ -397,6 +397,38 @@
 
 ---
 
+## Brainstorm: New Operators & Special Cards (v1.1 candidates)
+
+### New Operator Ideas
+| Operator | Symbol | Description | Balance Notes |
+|----------|--------|-------------|---------------|
+| Factorial | `!` | Postfix: `5! = 120`. Extremely powerful, only applies to single digit. | Restrict to values ≤ 7 to prevent overflow. Could be "!" card placed after a number. |
+| Square Root | `√` | Prefix: `√9 = 3`. Useful for reducing large numbers. | Returns floor value for non-perfect squares. Unary operator, needs special placement rules. |
+| Absolute Value | `\|x\|` | Wraps sub-expression: ensures result is positive. | Pairs like parentheses. Interesting with `allowNegative` rule. |
+| Concatenate | `∥` | Joins two digits: `3 ∥ 5 = 35`. Creates larger numbers from small cards. | Very powerful for large targets (Ridiculous Numbers preset). Could be operator card. |
+
+### New Special Card Ideas
+| Card | Description | Balance Notes |
+|------|-------------|---------------|
+| **Mirror** | Copy the last card played by your opponent to your hand. | Reactive strategy. Needs tracking of opponent's last play. |
+| **Freeze** | Skip opponent's next draw phase — they can't draw cards for 1 turn. | Disruption. Not too harsh since they keep their hand. |
+| **Bomb** | Discard 3 random cards from opponent's hand into discard pile. | Very aggressive. Consider limiting to 1 per deck. |
+| **Shield** | Prevent the next special card used against you (blocks Swap, Bomb, Freeze). | Defensive counter-play. Creates mind games. |
+| **Copy** | Create a duplicate of any card in your hand. | Flexible but not overpowered. Player chooses which card. |
+| **Multiply Target** | Multiply the current target by 2 (or halve it). | Changes the game state for both players. Risky play. |
+| **Steal** | Take a specific visible card from opponent's score pile. | Punishing but strategic. Only works if opponent has scored. |
+| **Time Warp** | Add 10 seconds to your timer / Remove 5 seconds from opponent's. | Only relevant in timed games. Adds urgency. |
+
+### Implementation Priority (if adding)
+1. **Concatenate** (high impact, simple rules)
+2. **Copy** (straightforward, fun)  
+3. **Freeze** (multiplayer strategy)
+4. **Mirror** (reactive play)
+5. **Factorial / Square Root** (math depth)
+6. Others as community requests
+
+---
+
 ## File Structure
 
 ```

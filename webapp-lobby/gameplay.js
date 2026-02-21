@@ -196,6 +196,10 @@
   const btnCheatPanel = $('btn-cheat-panel');
   const btnCloseCheat = $('btn-close-cheat');
   const btnHelpTrigger = $('btn-help-trigger');
+  const btnSettingsTrigger = $('btn-settings-trigger');
+  const settingsPanel = $('settings-panel');
+  const btnCloseSettings = $('btn-close-settings');
+  const settingsGrid = $('settings-grid');
   const handP1El = $('hand-p1');
   const handP2El = $('hand-p2');
   // Expression history panel
@@ -2932,6 +2936,42 @@
     }
   }
 
+  function populateSettingsGrid() {
+    if (!settingsGrid) return;
+    const r = gameRules;
+    const rows = [
+      ['Target Range', `${r.targetMin ?? 1} – ${r.targetMax ?? 99}`],
+      ['Win Points', r.winPoints ?? 5],
+      ['Hand Size', r.handSize ?? 5],
+      ['Hand Limit', r.handLimit ?? 12],
+      ['Turn Timer', r.turnTimerSec > 0 ? `${r.turnTimerSec}s` : 'Off'],
+      ['Max Draws/Turn', r.maxDrawPerTurn > 0 ? r.maxDrawPerTurn : '∞'],
+      ['Cards/Draw', r.minDrawPerClick ?? 1],
+      ['Nearest Score', r.nearestScore ? 'On' : 'Off'],
+      ['Nearest Threshold', r.nearestThreshold ?? r.nearestScoreThreshold ?? 2],
+      ['Allow Negative', r.allowNegative ? 'Yes' : 'No'],
+      ['Calc Order', r.operatorPrecedence === 'standard' ? 'PEMDAS' : 'Left-to-Right'],
+    ];
+    if (r.allowedOperators && r.allowedOperators.length > 0) {
+      const opNames = { add: '+', sub: '−', mul: '×', div: '÷', mod: '%', pow: '^' };
+      rows.push(['Operators', r.allowedOperators.map(o => opNames[o] || o).join(' ')]);
+    }
+    if (r.allowedSpecials && r.allowedSpecials.length > 0) {
+      rows.push(['Specials', r.allowedSpecials.join(', ')]);
+    }
+    settingsGrid.innerHTML = rows.map(([k, v]) =>
+      `<div class="settings-row"><span class="settings-label">${k}</span><span class="settings-value">${v}</span></div>`
+    ).join('');
+  }
+
+  function toggleSettings() {
+    if (!settingsPanel) return;
+    const showing = settingsPanel.classList.toggle('hidden');
+    if (!showing) populateSettingsGrid(); // populate when opening (hidden was removed)
+    // Actually: toggle removes/adds 'hidden'. If hidden was removed, panel is visible.
+    if (!settingsPanel.classList.contains('hidden')) populateSettingsGrid();
+  }
+
   // Event listeners
   playfield.addEventListener('click', (e) => {
     // Don't handle if clicking on a playfield card (handled by card's own click handler)
@@ -3201,6 +3241,16 @@
 
   if (btnHelpTrigger) {
     btnHelpTrigger.addEventListener('click', toggleHelp);
+  }
+
+  if (btnSettingsTrigger) {
+    btnSettingsTrigger.addEventListener('click', toggleSettings);
+  }
+  if (btnCloseSettings) {
+    btnCloseSettings.addEventListener('click', toggleSettings);
+  }
+  if (settingsPanel) {
+    settingsPanel.querySelector('.settings-backdrop')?.addEventListener('click', toggleSettings);
   }
 
   if (btnSkipBot) {

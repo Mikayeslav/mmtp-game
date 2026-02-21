@@ -112,10 +112,11 @@
           </div>
         </div>
 
-        <!-- Player Panel Actions (achievements, leaderboard, sign out) -->
+        <!-- Player Panel Actions (achievements, leaderboard, help, sign out) -->
         <div class="player-panel-actions">
           <button id="btn-achievements" class="btn btn-small btn-tool">🏆 Achievements</button>
           <button id="btn-leaderboard" class="btn btn-small btn-tool">📊 Leaderboard</button>
+          <button id="btn-help" class="btn btn-small btn-tool">❓ Help &amp; Hints</button>
           <button id="btn-sign-out" class="btn btn-small btn-danger-small" title="Clear profile & sign out">🚪 Sign Out</button>
         </div>
 
@@ -382,11 +383,51 @@
             <label for="rule-max-draw-turn">Max Draw/Turn:</label>
             <input type="number" id="rule-max-draw-turn" class="rule-input" min="0" max="20" value="0">
           </div>
+          <div class="rule-item">
+            <label for="rule-hand-limit">Hand Limit:</label>
+            <input type="number" id="rule-hand-limit" class="rule-input" min="0" max="30" value="12">
+          </div>
+          <div class="rule-item rule-item-checkbox">
+            <label for="rule-allow-negative" title="Allow expressions that result in negative numbers">
+              <input type="checkbox" id="rule-allow-negative">
+              Allow Negatives
+            </label>
+          </div>
           <div class="rule-item rule-item-checkbox">
             <label for="rule-nearest-score" title="Allow scoring when close to target (reduced points based on distance)">
               <input type="checkbox" id="rule-nearest-score">
               Nearest Score
             </label>
+          </div>
+          <div class="rule-item" id="nearest-threshold-row">
+            <label for="rule-nearest-threshold">Nearest Threshold:</label>
+            <input type="number" id="rule-nearest-threshold" class="rule-input" min="1" max="10" value="2">
+          </div>
+          <div class="rule-item">
+            <label for="rule-precedence">Eval Order:</label>
+            <select id="rule-precedence" class="rule-input">
+              <option value="left-to-right">Left-to-Right</option>
+              <option value="standard">PEMDAS / BODMAS</option>
+            </select>
+          </div>
+
+          <!-- Deck Composition -->
+          <div class="rule-item rule-item-full">
+            <div class="rule-group-header">
+              <span class="rule-group-label">Deck Composition</span>
+            </div>
+            <div class="deck-comp-row">
+              <label class="deck-comp-label">Numbers <span id="deck-num-val">63</span>%</label>
+              <input type="range" id="rule-deck-numbers" class="deck-slider" min="30" max="90" value="63">
+            </div>
+            <div class="deck-comp-row">
+              <label class="deck-comp-label">Operators <span id="deck-op-val">30</span>%</label>
+              <input type="range" id="rule-deck-operators" class="deck-slider" min="10" max="60" value="30">
+            </div>
+            <div class="deck-comp-row">
+              <label class="deck-comp-label">Specials <span id="deck-sp-val">7</span>%</label>
+              <input type="range" id="rule-deck-specials" class="deck-slider" min="0" max="25" value="7">
+            </div>
           </div>
 
           <!-- Operator Selection -->
@@ -424,6 +465,7 @@
               <label class="chip-check"><input type="checkbox" data-special="double" checked><span class="chip">×2 Double</span></label>
               <label class="chip-check"><input type="checkbox" data-special="peek" checked><span class="chip">👁 Peek</span></label>
               <label class="chip-check"><input type="checkbox" data-special="swap" checked><span class="chip">🔄 Swap</span></label>
+              <label class="chip-check"><input type="checkbox" data-special="paren"><span class="chip">() Parens</span></label>
             </div>
           </div>
         </div>
@@ -433,22 +475,8 @@
 
       <!-- Toolbar (compact utility buttons) -->
       <div class="lobby-toolbar">
-        <button id="btn-help" class="btn btn-small btn-tool">❓ Help</button>
         <button id="btn-settings" class="btn btn-small btn-tool">⚙️ Settings</button>
         <button id="btn-cheat-panel" class="btn btn-small btn-tool hidden">🧪 Cheats</button>
-        <button id="btn-toggle-hints-inline" class="btn btn-small btn-tool">💡 Hints</button>
-      </div>
-
-      <!-- Lobby Hints (collapsible) -->
-      <div id="lobby-hints-inline" class="lobby-hints-inline hidden">
-        <div id="hints-inline-content" class="hints-content">
-          <p>• Host a room or join with a 4-digit code</p>
-          <p>• Enable "Simulate Player 2 (Bot)" for single-player practice</p>
-          <p>• All players must be ready before host can start</p>
-          <p>• Customize operators and special cards in the Rules panel</p>
-          <p>• Save/load your profile via Cloud Save with a 6-char code</p>
-          <p>• Keyboard: <kbd>H</kbd>=Host, <kbd>R</kbd>=Ready, <kbd>S</kbd>=Start, <kbd>Esc</kbd>=Leave</p>
-        </div>
       </div>
     </div>
 
@@ -459,15 +487,23 @@
     <div class="spinner"></div>
   </div>
 
-  <!-- Help Modal -->
+  <!-- Help & Hints Modal -->
   <div id="help-modal" class="modal hidden">
     <div class="modal-backdrop"></div>
     <div class="modal-content">
       <div class="modal-header">
-        <h2>Help</h2>
+        <h2>Help &amp; Hints</h2>
         <button id="btn-close-help" class="btn-close">×</button>
       </div>
       <div class="modal-body">
+        <h3>Quick Hints</h3>
+        <ul>
+          <li>Host a room or join with a 4-digit code</li>
+          <li>Enable "Simulate Player 2 (Bot)" for single-player practice</li>
+          <li>All players must be ready before host can start</li>
+          <li>Customize operators, special cards &amp; deck composition in Rules</li>
+          <li>Save/load your profile automatically via cloud sync</li>
+        </ul>
         <h3>How to Play</h3>
         <p>Build mathematical expressions from cards to hit target numbers. First to reach the win score wins!</p>
         <h3>Game Flow</h3>
@@ -477,13 +513,13 @@
           <li>Customize rules: hand size, timer, operators, special cards</li>
           <li>All players click Ready → host clicks Start</li>
         </ul>
-        <h3>Controls</h3>
+        <h3>Keyboard Shortcuts</h3>
         <ul>
-          <li><strong>H</strong> — Host room</li>
-          <li><strong>R</strong> — Toggle ready</li>
-          <li><strong>S</strong> — Start game (host only)</li>
-          <li><strong>ESC</strong> — Leave / Close help</li>
-          <li><strong>?</strong> — Toggle help</li>
+          <li><kbd>H</kbd> — Host room</li>
+          <li><kbd>R</kbd> — Toggle ready</li>
+          <li><kbd>S</kbd> — Start game (host only)</li>
+          <li><kbd>ESC</kbd> — Leave / Close panels</li>
+          <li><kbd>?</kbd> — Toggle this help panel</li>
         </ul>
       </div>
     </div>

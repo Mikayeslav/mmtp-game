@@ -1361,6 +1361,28 @@ body {
   gap: 6px;
 }
 
+/* Deck composition sliders */
+.deck-comp-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 6px;
+}
+.deck-comp-label {
+  font-size: 0.82rem;
+  min-width: 110px;
+  color: var(--text-muted);
+}
+.deck-comp-label span {
+  font-weight: 600;
+  color: var(--accent);
+}
+.deck-slider {
+  flex: 1;
+  accent-color: var(--accent);
+  height: 4px;
+}
+
 .chip-check {
   cursor: pointer;
   user-select: none;

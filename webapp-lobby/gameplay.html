@@ -169,8 +169,28 @@
     <!-- XP Notifications (Call of Duty style) -->
     <div id="xp-notifications" class="xp-notifications" aria-live="polite"></div>
 
-    <!-- Help trigger button (bottom-left) -->
+    <!-- Help trigger button (bottom-right) -->
     <button id="btn-help-trigger" type="button" class="btn-help-trigger" aria-label="Keyboard shortcuts (? key)" title="Help & Shortcuts (?)">?</button>
+
+    <!-- Settings trigger button (bottom-right, next to help) -->
+    <button id="btn-settings-trigger" type="button" class="btn-settings-trigger" aria-label="View match settings" title="Match Settings">⚙</button>
+
+    <!-- Match Settings Panel (read-only) -->
+    <div id="settings-panel" class="settings-panel hidden" role="dialog" aria-labelledby="settings-title" aria-modal="true">
+      <div class="settings-content">
+        <div class="settings-header">
+          <h2 id="settings-title">⚙ Match Settings</h2>
+          <button id="btn-close-settings" class="btn-close" aria-label="Close settings panel">×</button>
+        </div>
+        <div class="settings-body" id="settings-body">
+          <p class="settings-note">These are the rules for the current match (read-only).</p>
+          <div class="settings-grid" id="settings-grid">
+            <!-- Populated by JS -->
+          </div>
+        </div>
+      </div>
+      <div class="settings-backdrop" aria-label="Close settings"></div>
+    </div>
 
     <!-- Cheat Panel Toggle Button -->
     <button id="btn-cheat-panel" type="button" class="btn-cheat-toggle hidden" aria-label="Open cheat panel" title="Cheat Panel (Ctrl+Shift+C)">🧪</button>

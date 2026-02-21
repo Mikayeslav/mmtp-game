@@ -191,8 +191,11 @@
       if (r.targetMin !== undefined) gameRules.targetMin = r.targetMin;
       if (r.targetMax !== undefined) gameRules.targetMax = r.targetMax;
       if (r.nearestScore !== undefined) gameRules.nearestScore = r.nearestScore;
+      if (r.nearestThreshold !== undefined) gameRules.nearestThreshold = r.nearestThreshold;
       if (r.maxDrawPerTurn !== undefined) gameRules.maxDrawPerTurn = r.maxDrawPerTurn;
       if (r.minDrawPerClick !== undefined) gameRules.minDrawPerClick = r.minDrawPerClick;
+      if (r.allowNegative !== undefined) gameRules.allowNegative = r.allowNegative;
+      if (r.operatorPrecedence !== undefined) gameRules.operatorPrecedence = r.operatorPrecedence;
     }
 
     // ── Player avatars/titles ──

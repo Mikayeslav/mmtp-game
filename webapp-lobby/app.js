@@ -50,7 +50,10 @@
   const ROOM_EXPIRY_MS = 30 * 60 * 1000; // 30 minutes
   const DEFAULTS = {
     handSize: 7, timer: 20, targetMin: 1, targetMax: 10, winPoints: 5,
-    botDifficulty: 'medium', nearestScore: false,
+    handLimit: 12, allowNegative: false, nearestScore: false, nearestThreshold: 2,
+    operatorPrecedence: 'left-to-right',
+    deckNumberPct: 63, deckOperatorPct: 30, deckSpecialPct: 7,
+    botDifficulty: 'medium',
     allowedOperators: ['add', 'sub', 'mul', 'div'],        // default: basic 4
     allowedSpecials: ['wild', 'reroll', 'double', 'peek', 'swap'],  // default: all
   };
@@ -61,14 +64,19 @@
   let onlineMode = false;
   let serverLanUrl = ''; // Filled from /api/server-info
   const RULES_CLAMP = { 
-    handSize: [1, 20], // Reduced from 30 to prevent UI breaking
-    timer: [5, 60], // Reduced from 300 to keep turns snappy
-    targetMin: [-50, 50], // Reduced from 99 for more feasible targets
-    targetMax: [-50, 50], // Reduced from 99 for more feasible targets
-    winPoints: [1, 15], // Reduced from 20 to prevent extremely long matches
-    rehandDrawCount: [0, 20], // Reduced from 30
-    minDrawPerClick: [1, 5], // Reduced from 10
-    maxDrawPerTurn: [0, 20], // Reduced from 50
+    handSize: [1, 20],
+    timer: [5, 120],
+    targetMin: [-999, 999],
+    targetMax: [-999, 999],
+    winPoints: [1, 50],
+    rehandDrawCount: [0, 20],
+    minDrawPerClick: [1, 5],
+    maxDrawPerTurn: [0, 20],
+    handLimit: [0, 30],      // 0 = unlimited
+    nearestThreshold: [1, 10],
+    deckNumberPct: [30, 90],
+    deckOperatorPct: [10, 60],
+    deckSpecialPct: [0, 25],
   };
 
   let tabId = sessionStorage.getItem(TAB_ID_KEY);
@@ -180,6 +188,17 @@
   const ruleMinDraw = $('rule-min-draw');
   const ruleMaxDrawTurn = $('rule-max-draw-turn');
   const ruleNearestScore = $('rule-nearest-score');
+  const ruleHandLimit = $('rule-hand-limit');
+  const ruleAllowNegative = $('rule-allow-negative');
+  const ruleNearestThreshold = $('rule-nearest-threshold');
+  const rulePrecedence = $('rule-precedence');
+  const ruleDeckNumbers = $('rule-deck-numbers');
+  const ruleDeckOperators = $('rule-deck-operators');
+  const ruleDeckSpecials = $('rule-deck-specials');
+  const deckNumVal = $('deck-num-val');
+  const deckOpVal = $('deck-op-val');
+  const deckSpVal = $('deck-sp-val');
+  const nearestThresholdRow = $('nearest-threshold-row');
   const operatorCheckboxes = document.getElementById('operator-checkboxes');
   const specialCheckboxes = document.getElementById('special-checkboxes');
   const rulesError = $('rules-error');
@@ -206,8 +225,7 @@
   const loadingSpinner = $('loading-spinner');
   // btnBack removed — game navigates to /play
   const statusEl = $('status');
-  const btnToggleHintsInline = $('btn-toggle-hints-inline');
-  const hintsInlineContent = $('hints-inline-content');
+  // Hints merged into Help modal — inline hints removed
 
   // Room cleanup interval
   let roomCleanupInterval = null;
@@ -396,17 +414,30 @@
 
   function clampRules(r) {
     const o = { ...r };
-    o.handSize = Math.max(RULES_CLAMP.handSize[0], Math.min(RULES_CLAMP.handSize[1], num(o.handSize, DEFAULTS.handSize)));
-    o.timer = Math.max(RULES_CLAMP.timer[0], Math.min(RULES_CLAMP.timer[1], num(o.timer, DEFAULTS.timer)));
-    o.targetMin = Math.max(RULES_CLAMP.targetMin[0], Math.min(RULES_CLAMP.targetMin[1], num(o.targetMin, DEFAULTS.targetMin)));
+    const clamp = (key, def) => Math.max(RULES_CLAMP[key][0], Math.min(RULES_CLAMP[key][1], num(o[key], def)));
+    o.handSize = clamp('handSize', DEFAULTS.handSize);
+    o.timer = clamp('timer', DEFAULTS.timer);
+    o.targetMin = clamp('targetMin', DEFAULTS.targetMin);
     o.targetMax = Math.max(o.targetMin, Math.min(RULES_CLAMP.targetMax[1], num(o.targetMax, DEFAULTS.targetMax)));
-    o.winPoints = Math.max(RULES_CLAMP.winPoints[0], Math.min(RULES_CLAMP.winPoints[1], num(o.winPoints, DEFAULTS.winPoints)));
-    o.rehandDrawCount = Math.max(RULES_CLAMP.rehandDrawCount[0], Math.min(RULES_CLAMP.rehandDrawCount[1], num(o.rehandDrawCount, 5)));
-    o.minDrawPerClick = Math.max(RULES_CLAMP.minDrawPerClick[0], Math.min(RULES_CLAMP.minDrawPerClick[1], num(o.minDrawPerClick, 1)));
-    o.maxDrawPerTurn = Math.max(RULES_CLAMP.maxDrawPerTurn[0], Math.min(RULES_CLAMP.maxDrawPerTurn[1], num(o.maxDrawPerTurn, 0)));
+    o.winPoints = clamp('winPoints', DEFAULTS.winPoints);
+    o.rehandDrawCount = clamp('rehandDrawCount', 5);
+    o.minDrawPerClick = clamp('minDrawPerClick', 1);
+    o.maxDrawPerTurn = clamp('maxDrawPerTurn', 0);
+    o.handLimit = clamp('handLimit', DEFAULTS.handLimit);
+    o.nearestThreshold = clamp('nearestThreshold', DEFAULTS.nearestThreshold);
+    o.deckNumberPct = clamp('deckNumberPct', DEFAULTS.deckNumberPct);
+    o.deckOperatorPct = clamp('deckOperatorPct', DEFAULTS.deckOperatorPct);
+    o.deckSpecialPct = clamp('deckSpecialPct', DEFAULTS.deckSpecialPct);
+    // Boolean fields
+    o.allowNegative = !!o.allowNegative;
+    o.nearestScore = !!o.nearestScore;
+    // Auto-enable negatives if target range includes negative values
+    if (o.targetMin < 0) o.allowNegative = true;
+    // Operator precedence
+    o.operatorPrecedence = ['left-to-right', 'standard'].includes(o.operatorPrecedence) ? o.operatorPrecedence : 'left-to-right';
     // Pass through array fields (validated, not clamped)
     const validOps = ['add', 'sub', 'mul', 'div', 'mod', 'pow'];
-    const validSpecials = ['wild', 'reroll', 'double', 'peek', 'swap'];
+    const validSpecials = ['wild', 'reroll', 'double', 'peek', 'swap', 'paren'];
     o.allowedOperators = Array.isArray(o.allowedOperators)
       ? o.allowedOperators.filter(op => validOps.includes(op))
       : DEFAULTS.allowedOperators;
@@ -833,7 +864,17 @@
     if (ruleRehandDraw) ruleRehandDraw.value = r.rehandDrawCount ?? 5;
     if (ruleMinDraw) ruleMinDraw.value = r.minDrawPerClick ?? 1;
     if (ruleMaxDrawTurn) ruleMaxDrawTurn.value = r.maxDrawPerTurn ?? 0;
+    if (ruleHandLimit) ruleHandLimit.value = r.handLimit ?? 12;
     if (ruleNearestScore) ruleNearestScore.checked = !!r.nearestScore;
+    if (ruleAllowNegative) ruleAllowNegative.checked = !!r.allowNegative;
+    if (ruleNearestThreshold) ruleNearestThreshold.value = r.nearestThreshold ?? 2;
+    if (rulePrecedence) rulePrecedence.value = r.operatorPrecedence || 'left-to-right';
+    // Deck composition sliders
+    if (ruleDeckNumbers) { ruleDeckNumbers.value = r.deckNumberPct ?? 63; updateDeckSliderLabel(); }
+    if (ruleDeckOperators) { ruleDeckOperators.value = r.deckOperatorPct ?? 30; updateDeckSliderLabel(); }
+    if (ruleDeckSpecials) { ruleDeckSpecials.value = r.deckSpecialPct ?? 7; updateDeckSliderLabel(); }
+    // Show/hide nearest threshold row based on checkbox
+    if (nearestThresholdRow) nearestThresholdRow.style.display = r.nearestScore ? '' : 'none';
 
     // Operator checkboxes
     const ops = r.allowedOperators || DEFAULTS.allowedOperators;
@@ -852,6 +893,12 @@
     }
 
     validateRules();
+  }
+
+  function updateDeckSliderLabel() {
+    if (deckNumVal && ruleDeckNumbers) deckNumVal.textContent = ruleDeckNumbers.value;
+    if (deckOpVal && ruleDeckOperators) deckOpVal.textContent = ruleDeckOperators.value;
+    if (deckSpVal && ruleDeckSpecials) deckSpVal.textContent = ruleDeckSpecials.value;
   }
 
   function readRulesFromInputs() {
@@ -882,8 +929,15 @@
       rehandDrawCount: ruleRehandDraw?.value,
       minDrawPerClick: ruleMinDraw?.value,
       maxDrawPerTurn: ruleMaxDrawTurn?.value,
-      specialCards: allowedSpecials.length > 0,
+      handLimit: ruleHandLimit?.value,
+      allowNegative: !!ruleAllowNegative?.checked,
       nearestScore: !!ruleNearestScore?.checked,
+      nearestThreshold: ruleNearestThreshold?.value,
+      operatorPrecedence: rulePrecedence?.value || 'left-to-right',
+      deckNumberPct: ruleDeckNumbers?.value,
+      deckOperatorPct: ruleDeckOperators?.value,
+      deckSpecialPct: ruleDeckSpecials?.value,
+      specialCards: allowedSpecials.length > 0,
       allowedOperators,
       allowedSpecials,
     });
@@ -1634,6 +1688,7 @@
     { name: '🧮 Pure Math', rules: { handSize: 7, timer: 30, targetMin: 1, targetMax: 20, winPoints: 5, rehandDrawCount: 5, minDrawPerClick: 1, maxDrawPerTurn: 0, specialCards: false, nearestScore: false, allowedOperators: ['add','sub','mul','div'], allowedSpecials: [] }, builtIn: true },
     { name: '🔥 Chaos', rules: { handSize: 12, timer: 25, targetMin: -50, targetMax: 50, winPoints: 7, rehandDrawCount: 8, minDrawPerClick: 2, maxDrawPerTurn: 5, specialCards: true, nearestScore: true, allowedOperators: ['add','sub','mul','div','mod','pow'], allowedSpecials: ['wild','reroll','double','peek','swap'] }, builtIn: true },
     { name: '👶 Beginner', rules: { handSize: 9, timer: 60, targetMin: 1, targetMax: 10, winPoints: 3, rehandDrawCount: 7, minDrawPerClick: 1, maxDrawPerTurn: 0, specialCards: false, nearestScore: true, allowedOperators: ['add','sub','mul'], allowedSpecials: [] }, builtIn: true },
+    { name: '🤯 Ridiculous Numbers', rules: { handSize: 15, handLimit: 20, timer: 90, targetMin: 100, targetMax: 99999, winPoints: 5, rehandDrawCount: 10, minDrawPerClick: 3, maxDrawPerTurn: 0, specialCards: true, nearestScore: true, nearestThreshold: 5, allowNegative: true, operatorPrecedence: 'standard', allowedOperators: ['add','sub','mul','div','mod','pow'], allowedSpecials: ['wild','reroll','double','peek','swap','paren'], deckNumberPct: 55, deckOperatorPct: 35, deckSpecialPct: 10 }, builtIn: true },
   ];
 
   function loadCustomPresets() {
@@ -2271,13 +2326,7 @@
   }
   if (btnResetRules) btnResetRules.addEventListener('click', onResetRules);
 
-  // Lobby hints toggle
-  if (btnToggleHintsInline) {
-    btnToggleHintsInline.addEventListener('click', () => {
-      const hintsPanel = $('lobby-hints-inline');
-      if (hintsPanel) hintsPanel.classList.toggle('hidden');
-    });
-  }
+  // (Inline hints removed — merged into Help modal)
 
   // (Collapsible section toggles removed — all sections now use native <details>)
 
@@ -2965,7 +3014,7 @@
     });
   }
 
-  [ruleHand, ruleTimer, ruleMin, ruleMax, ruleWin].forEach((inp) => {
+  [ruleHand, ruleTimer, ruleMin, ruleMax, ruleWin, ruleRehandDraw, ruleMinDraw, ruleMaxDrawTurn, ruleHandLimit, ruleNearestThreshold].forEach((inp) => {
     if (inp) {
       inp.addEventListener('change', onRulesChange);
       inp.addEventListener('blur', onRulesChange);
@@ -2975,8 +3024,19 @@
     }
   });
   if (ruleNearestScore) {
-    ruleNearestScore.addEventListener('change', onRulesChange);
+    ruleNearestScore.addEventListener('change', () => {
+      if (nearestThresholdRow) nearestThresholdRow.style.display = ruleNearestScore.checked ? '' : 'none';
+      onRulesChange();
+    });
   }
+  if (ruleAllowNegative) ruleAllowNegative.addEventListener('change', onRulesChange);
+  if (rulePrecedence) rulePrecedence.addEventListener('change', onRulesChange);
+  // Deck composition sliders
+  [ruleDeckNumbers, ruleDeckOperators, ruleDeckSpecials].forEach((sl) => {
+    if (sl) {
+      sl.addEventListener('input', () => { updateDeckSliderLabel(); onRulesChange(); });
+    }
+  });
 
   // ── Operator & Special card checkboxes ──
   if (operatorCheckboxes) {

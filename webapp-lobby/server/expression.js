@@ -17,7 +17,7 @@
 
 const CardType = { Number: 'number', Operator: 'operator', Special: 'special', Paren: 'paren' };
 const OperatorKind = { Add: 'add', Sub: 'sub', Mul: 'mul', Div: 'div', Mod: 'mod', Pow: 'pow' };
-const SpecialKind = { Wild: 'wild', Reroll: 'reroll', Double: 'double', Peek: 'peek', Swap: 'swap' };
+const SpecialKind = { Wild: 'wild', Reroll: 'reroll', Double: 'double', Peek: 'peek', Swap: 'swap', Paren: 'paren' };
 const ParenKind = { Open: 'open', Close: 'close' };
 
 /**
@@ -117,12 +117,23 @@ function evaluateLeftToRight(tokens, opts = {}) {
     tokens = resolved.tokens;
   }
 
-  if (tokens[0].type !== CardType.Number || tokens[0].value === undefined) {
-    return { ok: false, value: 0, reason: 'Expression must start with a number' };
+  // Handle leading negation: − NUM ...
+  let startIdx = 0;
+  let acc;
+  if (tokens[0].type === CardType.Operator && tokens[0].operatorKind === OperatorKind.Sub) {
+    if (tokens.length < 2 || tokens[1].type !== CardType.Number) {
+      return { ok: false, value: 0, reason: 'Negation must be followed by a number' };
+    }
+    acc = -tokens[1].value;
+    startIdx = 2;
+  } else if (tokens[0].type === CardType.Number && tokens[0].value !== undefined) {
+    acc = tokens[0].value;
+    startIdx = 1;
+  } else {
+    return { ok: false, value: 0, reason: 'Expression must start with a number or − (negation)' };
   }
-  let acc = tokens[0].value;
 
-  for (let i = 1; i < tokens.length; i += 2) {
+  for (let i = startIdx; i < tokens.length; i += 2) {
     if (i + 1 >= tokens.length) {
       return { ok: false, value: 0, reason: 'Expression ends with operator' };
     }
@@ -175,26 +186,37 @@ function evaluateStandard(tokens, opts = {}) {
     tokens = resolved.tokens;
   }
 
-  if (tokens[0].type !== CardType.Number || tokens[0].value === undefined) {
-    return { ok: false, value: 0, reason: 'Expression must start with a number' };
+  // Handle leading negation: − NUM ...
+  let workTokens = tokens;
+  if (tokens[0].type === CardType.Operator && tokens[0].operatorKind === OperatorKind.Sub) {
+    if (tokens.length < 2 || tokens[1].type !== CardType.Number) {
+      return { ok: false, value: 0, reason: 'Negation must be followed by a number' };
+    }
+    // Convert leading −N to a single negative number token
+    workTokens = [{ type: CardType.Number, value: -tokens[1].value }, ...tokens.slice(2)];
+  } else if (tokens[0].type !== CardType.Number || tokens[0].value === undefined) {
+    return { ok: false, value: 0, reason: 'Expression must start with a number or − (negation)' };
   }
-  if (tokens.length === 1) {
-    return { ok: true, value: tokens[0].value, reason: '' };
+
+  if (workTokens.length === 1) {
+    const v = workTokens[0].value;
+    if (!opts.allowNegative && v < 0) return { ok: false, value: v, reason: 'Negative result not allowed' };
+    return { ok: true, value: v, reason: '' };
   }
 
   const nums = [];
   const ops = [];
-  for (let i = 0; i < tokens.length; i++) {
+  for (let i = 0; i < workTokens.length; i++) {
     if (i % 2 === 0) {
-      if (!tokens[i] || tokens[i].type !== CardType.Number) {
+      if (!workTokens[i] || workTokens[i].type !== CardType.Number) {
         return { ok: false, value: 0, reason: 'Invalid expression pattern' };
       }
-      nums.push(tokens[i].value);
+      nums.push(workTokens[i].value);
     } else {
-      if (!tokens[i] || tokens[i].type !== CardType.Operator) {
+      if (!workTokens[i] || workTokens[i].type !== CardType.Operator) {
         return { ok: false, value: 0, reason: 'Invalid expression pattern' };
       }
-      ops.push(tokens[i].operatorKind);
+      ops.push(workTokens[i].operatorKind);
     }
   }
   if (nums.length !== ops.length + 1) {
@@ -269,12 +291,13 @@ function validateParenBalance(tokens) {
  * Check if a card can be legally placed at the end of the current playfield.
  * Returns { ok: boolean, reason?: string }
  */
-function canPlaceCard(playfield, card) {
+function canPlaceCard(playfield, card, opts = {}) {
   if (playfield.length === 0) {
-    // First card: Number or Open Paren
+    // First card: Number, Open Paren, or Sub operator (for negation)
     if (card.type === CardType.Number) return { ok: true };
     if (card.type === CardType.Paren && card.parenKind === ParenKind.Open) return { ok: true };
-    return { ok: false, reason: 'Expression must start with a number or (' };
+    if (card.type === CardType.Operator && card.operatorKind === OperatorKind.Sub) return { ok: true };
+    return { ok: false, reason: 'Expression must start with a number, ( or − (negation)' };
   }
 
   const last = playfield[playfield.length - 1];
@@ -304,11 +327,12 @@ function canPlaceCard(playfield, card) {
     return { ok: false, reason: 'Expected a number or ( after an operator' };
   }
 
-  // After Open Paren: Number or Open Paren
+  // After Open Paren: Number, Open Paren, or Sub (negation)
   if (last.type === CardType.Paren && last.parenKind === ParenKind.Open) {
     if (card.type === CardType.Number) return { ok: true };
     if (card.type === CardType.Paren && card.parenKind === ParenKind.Open) return { ok: true };
-    return { ok: false, reason: 'Expected a number or ( after (' };
+    if (card.type === CardType.Operator && card.operatorKind === OperatorKind.Sub) return { ok: true };
+    return { ok: false, reason: 'Expected a number, ( or − after (' };
   }
 
   // After Close Paren: Operator or Close Paren
@@ -354,10 +378,13 @@ function evaluate(tokens, mode = 'left-to-right', opts = {}) {
   if (!tokens || tokens.length === 0) {
     return { ok: false, value: 0, reason: 'No cards on playfield' };
   }
-  // Allow starting with ( or Number
+  // Allow starting with (, Number, or − (negation)
   const first = tokens[0];
-  if (first.type !== CardType.Number && !(first.type === CardType.Paren && first.parenKind === ParenKind.Open)) {
-    return { ok: false, value: 0, reason: 'Expression must start with a number or (' };
+  const validStart = first.type === CardType.Number
+    || (first.type === CardType.Paren && first.parenKind === ParenKind.Open)
+    || (first.type === CardType.Operator && first.operatorKind === OperatorKind.Sub);
+  if (!validStart) {
+    return { ok: false, value: 0, reason: 'Expression must start with a number, ( or − (negation)' };
   }
   if (mode === 'standard') return evaluateStandard(tokens, opts);
   return evaluateLeftToRight(tokens, opts);

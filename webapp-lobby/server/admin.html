@@ -152,6 +152,39 @@
     <div id="profiles-table"></div>
   </div>
 
+  <!-- Dev Tools -->
+  <div class="panel full-width">
+    <h2>🛠️ Dev Tools</h2>
+    <div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:12px">
+      <button class="btn btn-accent" onclick="createTestAccount()">➕ Create Test Account</button>
+      <button class="btn" onclick="createCheatAccount()">🧪 Create Cheat/Dev Account</button>
+      <button class="btn btn-danger" onclick="resetAllProfiles()">🗑️ Purge All Profiles</button>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px">
+      <div class="form-row">
+        <label>Quick Grant XP to profile code:</label>
+        <div style="display:flex;gap:6px">
+          <input id="quick-code" type="text" placeholder="ABCDEF" maxlength="6" style="width:90px;background:var(--bg-input);border:1px solid var(--border);color:var(--text);padding:4px 8px;border-radius:4px">
+          <input id="quick-xp" type="number" value="1000" min="0" style="width:80px;background:var(--bg-input);border:1px solid var(--border);color:var(--text);padding:4px 8px;border-radius:4px">
+          <button class="btn btn-sm btn-accent" onclick="quickGrantXP()">Grant</button>
+        </div>
+      </div>
+      <div class="form-row">
+        <label>Quick Set Rating:</label>
+        <div style="display:flex;gap:6px">
+          <input id="quick-rating-code" type="text" placeholder="ABCDEF" maxlength="6" style="width:90px;background:var(--bg-input);border:1px solid var(--border);color:var(--text);padding:4px 8px;border-radius:4px">
+          <input id="quick-rating" type="number" value="2000" min="0" style="width:80px;background:var(--bg-input);border:1px solid var(--border);color:var(--text);padding:4px 8px;border-radius:4px">
+          <button class="btn btn-sm btn-accent" onclick="quickSetRating()">Set</button>
+        </div>
+      </div>
+    </div>
+    <h3>Broadcast Message (to all connected sockets)</h3>
+    <div style="display:flex;gap:6px;margin-bottom:8px">
+      <input id="broadcast-msg" type="text" placeholder="Server maintenance in 5 minutes..." style="flex:1;background:var(--bg-input);border:1px solid var(--border);color:var(--text);padding:6px 10px;border-radius:4px">
+      <button class="btn btn-accent" onclick="broadcastMsg()">📢 Send</button>
+    </div>
+  </div>
+
   <!-- Server Logs (recent actions) -->
   <div class="panel full-width">
     <h2>📋 Activity Log</h2>
@@ -449,6 +482,86 @@ async function deleteProfileDirect(code) {
   const r = await deleteJSON(`/api/admin/profiles/${code}`);
   log(r.ok ? `Profile ${code} deleted` : `Failed: ${r.error}`, r.ok ? 'warn' : 'err');
   refreshProfiles();
+}
+
+// ── Dev Tools ──
+async function createTestAccount() {
+  const name = prompt('Test account name:', 'TestPlayer');
+  if (!name) return;
+  const r = await postJSON('/api/profile/create', { name, pin: '0000' });
+  if (r.ok) {
+    log(`Test account created: ${r.code} (${name}, PIN: ${r.pin || '0000'})`, 'info');
+    alert(`Test account created!\nCode: ${r.code}\nPIN: ${r.pin || '0000'}\nName: ${name}`);
+    refreshProfiles();
+  } else {
+    log(`Failed to create test account: ${r.error}`, 'err');
+    alert('Failed: ' + r.error);
+  }
+}
+
+async function createCheatAccount() {
+  const name = prompt('Dev/Cheat account name:', 'DevAdmin');
+  if (!name) return;
+  const r = await postJSON('/api/profile/create', { name, pin: '9999' });
+  if (r.ok) {
+    // Boost stats to make it look like a dev account
+    const boost = { wins: 999, losses: 0, draws: 0, rating: 9999, level: 99, xp: 99999, winStreak: 99, bestWinStreak: 99 };
+    await postJSON(`/api/admin/profiles/${r.code}/stats`, boost);
+    log(`Dev account created: ${r.code} (${name}, PIN: ${r.pin || '9999'}) with boosted stats`, 'info');
+    alert(`Dev account created!\nCode: ${r.code}\nPIN: ${r.pin || '9999'}\nName: ${name}\nRating: 9999, Level: 99`);
+    refreshProfiles();
+  } else {
+    log(`Failed: ${r.error}`, 'err');
+    alert('Failed: ' + r.error);
+  }
+}
+
+async function resetAllProfiles() {
+  if (!confirm('⚠️ DELETE ALL PROFILES? This cannot be undone!')) return;
+  if (!confirm('Are you REALLY sure? Type reasoning: all profiles will be permanently deleted.')) return;
+  const data = await fetchJSON('/api/admin/profiles');
+  if (!data.ok || !data.profiles.length) { log('No profiles to delete', 'warn'); return; }
+  let deleted = 0;
+  for (const p of data.profiles) {
+    const r = await deleteJSON(`/api/admin/profiles/${p.code}`);
+    if (r.ok) deleted++;
+  }
+  log(`Purged ${deleted}/${data.profiles.length} profiles`, 'warn');
+  refreshProfiles();
+}
+
+async function quickGrantXP() {
+  const code = document.getElementById('quick-code').value.trim().toUpperCase();
+  const xp = parseInt(document.getElementById('quick-xp').value) || 0;
+  if (!code || code.length < 6) { alert('Enter a valid 6-char code'); return; }
+  const data = await fetchJSON(`/api/admin/profiles/${code}`);
+  if (!data.ok) { alert('Profile not found'); return; }
+  const s = data.data.stats || {};
+  s.xp = (s.xp || 0) + xp;
+  const r = await postJSON(`/api/admin/profiles/${code}/stats`, s);
+  log(r.ok ? `Granted ${xp} XP to ${code} (total: ${s.xp})` : `Failed: ${r.error}`, r.ok ? 'info' : 'err');
+  refreshProfiles();
+}
+
+async function quickSetRating() {
+  const code = document.getElementById('quick-rating-code').value.trim().toUpperCase();
+  const rating = parseInt(document.getElementById('quick-rating').value) || 0;
+  if (!code || code.length < 6) { alert('Enter a valid 6-char code'); return; }
+  const data = await fetchJSON(`/api/admin/profiles/${code}`);
+  if (!data.ok) { alert('Profile not found'); return; }
+  const s = data.data.stats || {};
+  s.rating = rating;
+  const r = await postJSON(`/api/admin/profiles/${code}/stats`, s);
+  log(r.ok ? `Set rating of ${code} to ${rating}` : `Failed: ${r.error}`, r.ok ? 'info' : 'err');
+  refreshProfiles();
+}
+
+async function broadcastMsg() {
+  const msg = document.getElementById('broadcast-msg').value.trim();
+  if (!msg) return;
+  const r = await postJSON('/api/admin/broadcast', { message: msg });
+  log(r.ok ? `Broadcast sent: "${msg}"` : `Failed: ${r.error}`, r.ok ? 'info' : 'err');
+  document.getElementById('broadcast-msg').value = '';
 }
 
 // ── Auto-refresh ──

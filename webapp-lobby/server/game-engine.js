@@ -163,7 +163,29 @@ class GameEngine {
       card = { id: card.id, type: CardType.Number, value: wildValue, wasWild: true };
     }
 
-    // Non-Wild specials can't be placed on playfield
+    // Paren special card: paired parentheses (2 uses per card)
+    if (card.type === CardType.Special && card.specialKind === SpecialKind.Paren) {
+      const uses = card.parenUses ?? 2;
+      // First use = open paren, second use = close paren
+      const parenKind = uses === 2 ? 'open' : 'close';
+      const parenCard = { id: card.id, type: CardType.Paren, parenKind };
+      const placeCheck = canPlaceCard(pf, parenCard);
+      if (!placeCheck.ok) return { ok: false, error: placeCheck.reason };
+      pf.push(parenCard);
+      this.matchStats[pid].cardsPlayed++;
+      if (uses <= 1) {
+        // Both uses consumed — remove from hand
+        hand.splice(idx, 1);
+        this.discardPile.push(card);
+      } else {
+        // Decrement uses — card stays in hand
+        hand[idx] = { ...card, parenUses: uses - 1 };
+      }
+      this._broadcastState();
+      return { ok: true };
+    }
+
+    // Non-Wild/non-Paren specials can't be placed on playfield
     if (card.type === CardType.Special) {
       return { ok: false, error: 'This special card can\'t be placed on the playfield. Use it from your hand.' };
     }
@@ -224,7 +246,8 @@ class GameEngine {
     const diff = Math.abs(result.value - this.target);
     const isExact = diff === 0;
     const nearestEnabled = !!this.rules.nearestScore;
-    const isNearScore = nearestEnabled && !isExact && diff <= 2;
+    const nearThreshold = this.rules.nearestThreshold ?? 2;
+    const isNearScore = nearestEnabled && !isExact && diff <= nearThreshold;
 
     if (!isExact && !isNearScore) {
       // Miss — broadcast the miss
@@ -237,8 +260,14 @@ class GameEngine {
       return { ok: false, error: `Expression = ${result.value}, target = ${this.target}` };
     }
 
-    // Score! Calculate points: exact = 1, near off-by-1 = 0.5, off-by-2 = 0.25
-    let basePoints = isExact ? 1 : (diff === 1 ? 0.5 : 0.25);
+    // Score! Calculate points: exact = 1, near = proportional to distance
+    let basePoints;
+    if (isExact) {
+      basePoints = 1;
+    } else {
+      // Linear falloff: closer = more points, e.g. diff=1 out of threshold=3 → 0.67
+      basePoints = Math.max(0.25, 1 - (diff / (nearThreshold + 1)));
+    }
     const doubleBuff = this.doubleNext[pid];
     const pointsAwarded = doubleBuff ? basePoints * 2 : basePoints;
     this.scores[pid] += pointsAwarded;
@@ -443,33 +472,28 @@ class GameEngine {
       }
 
       case SpecialKind.Swap: {
-        // Swap a random non-special card from your hand with a random one from opponent
+        // Swap entire hands with opponent
         const oppId = pid === 1 ? 2 : 1;
-        const oppHand = this.hands[oppId];
-        // Find swappable cards (non-special)
-        const mySwappable = hand.filter((c, i) => i !== idx && c.type !== CardType.Special);
-        const oppSwappable = oppHand.filter(c => c.type !== CardType.Special);
-        if (mySwappable.length === 0 || oppSwappable.length === 0) {
-          return { ok: false, error: 'No cards available to swap' };
-        }
-        // Pick random cards from each hand
-        const mySwapCard = mySwappable[Math.floor(Math.random() * mySwappable.length)];
-        const oppSwapCard = oppSwappable[Math.floor(Math.random() * oppSwappable.length)];
-        const mySwapIdx = hand.findIndex(c => c.id === mySwapCard.id);
-        const oppSwapIdx = oppHand.findIndex(c => c.id === oppSwapCard.id);
-        // Perform the swap
-        hand[mySwapIdx] = oppSwapCard;
-        oppHand[oppSwapIdx] = mySwapCard;
-        // Discard the Swap card itself (idx unchanged since we used assignment, not splice, above)
+        // Remove the Swap card first, then swap hands
         hand.splice(idx, 1);
         this.discardPile.push(card);
-        this.broadcast('cardSwapped', {
+        // Swap the hand arrays
+        const temp = [...this.hands[pid]];
+        this.hands[pid] = [...this.hands[oppId]];
+        this.hands[oppId] = temp;
+        this.broadcast('handSwapped', {
           playerId: pid,
-          gave: { type: mySwapCard.type, value: mySwapCard.value, operatorKind: mySwapCard.operatorKind },
-          received: { type: oppSwapCard.type, value: oppSwapCard.value, operatorKind: oppSwapCard.operatorKind },
+          myNewCount: this.hands[pid].length,
+          oppNewCount: this.hands[oppId].length,
         }, this.room.code);
         this._broadcastState();
         return { ok: true, swapped: true };
+      }
+
+      case SpecialKind.Paren: {
+        // Paren card: place open or close parenthesis on playfield
+        // This is handled via placeCard, not useSpecial
+        return { ok: false, error: 'Place Paren cards on the playfield (they work as ( and ) )' };
       }
 
       default:
@@ -550,21 +574,53 @@ class GameEngine {
     const allowedOps = (Array.isArray(this.rules.allowedOperators) && this.rules.allowedOperators.length > 0)
       ? this.rules.allowedOperators
       : [OperatorKind.Add, OperatorKind.Sub, OperatorKind.Mul, OperatorKind.Div];
-    const allowedSpecials = (Array.isArray(this.rules.allowedSpecials) && this.rules.allowedSpecials.length > 0)
+    // Filter out 'paren' from specials for individual card generation —
+    // paren cards are generated via the allowedSpecials list and use SpecialKind.Paren
+    const allowedSpecialsRaw = (Array.isArray(this.rules.allowedSpecials) && this.rules.allowedSpecials.length > 0)
       ? this.rules.allowedSpecials
       : [];
-    const useSpecials = allowedSpecials.length > 0;
+    const hasParenCards = allowedSpecialsRaw.includes('paren');
+    const allowedSpecials = allowedSpecialsRaw.filter(s => s !== 'paren');
+    const useSpecials = allowedSpecials.length > 0 || hasParenCards;
+
+    // Deck composition from rules (percentages, sum doesn't have to be 100)
+    const numPct = (this.rules.deckNumberPct ?? 63) / 100;
+    const opPct = (this.rules.deckOperatorPct ?? 30) / 100;
+    const spPct = useSpecials ? (this.rules.deckSpecialPct ?? 7) / 100 : 0;
+    const total = numPct + opPct + spPct;
+    // Normalize to ensure they sum to 1
+    const nNum = numPct / total;
+    const nOp = opPct / total;
+    // nSp = 1 - nNum - nOp (remainder)
 
     for (let i = 0; i < 100; i++) {
       const roll = Math.random();
-      if (useSpecials && roll < 0.07) {
-        // Special cards — only from allowed list
-        deck.push({
-          id: this._nextCardId++,
-          type: CardType.Special,
-          specialKind: allowedSpecials[Math.floor(Math.random() * allowedSpecials.length)],
-        });
-      } else if (roll < (useSpecials ? 0.37 : 0.32)) {
+      if (useSpecials && roll < (1 - nNum - nOp)) {
+        // Special cards
+        if (hasParenCards && (allowedSpecials.length === 0 || Math.random() < 0.3)) {
+          // Parentheses pair card: starts with 2 uses
+          deck.push({
+            id: this._nextCardId++,
+            type: CardType.Special,
+            specialKind: SpecialKind.Paren,
+            parenUses: 2, // paired card: use once for (, again for )
+          });
+        } else if (allowedSpecials.length > 0) {
+          deck.push({
+            id: this._nextCardId++,
+            type: CardType.Special,
+            specialKind: allowedSpecials[Math.floor(Math.random() * allowedSpecials.length)],
+          });
+        } else {
+          // Only paren specials available, create one
+          deck.push({
+            id: this._nextCardId++,
+            type: CardType.Special,
+            specialKind: SpecialKind.Paren,
+            parenUses: 2,
+          });
+        }
+      } else if (roll < (1 - nNum)) {
         // Operators — only from allowed list
         deck.push({
           id: this._nextCardId++,
@@ -653,8 +709,11 @@ class GameEngine {
         targetMin: this.rules.targetMin,
         targetMax: this.rules.targetMax,
         nearestScore: this.rules.nearestScore,
+        nearestThreshold: this.rules.nearestThreshold ?? 2,
         maxDrawPerTurn: this.rules.maxDrawPerTurn,
         minDrawPerClick: this.rules.minDrawPerClick,
+        allowNegative: this.rules.allowNegative,
+        operatorPrecedence: this.rules.operatorPrecedence,
       },
     };
   }

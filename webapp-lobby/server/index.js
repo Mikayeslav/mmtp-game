@@ -279,6 +279,15 @@ app.delete('/api/admin/rooms/:code', requireAdmin, (req, res) => {
   res.json({ ok: true });
 });
 
+// Admin: broadcast message to all connected sockets
+app.post('/api/admin/broadcast', requireAdmin, (req, res) => {
+  const { message } = req.body;
+  if (!message) return res.json({ ok: false, error: 'No message provided' });
+  io.emit('serverBroadcast', { message, timestamp: Date.now() });
+  console.log(`[Admin] Broadcast: ${message}`);
+  res.json({ ok: true, delivered: io.engine?.clientsCount || 0 });
+});
+
 // ── Socket.io ──
 const io = new Server(server, {
   cors: {
