@@ -177,6 +177,11 @@
   const btnDraw = $('btn-draw');
   const deckCount = $('deck-count');
   const deckLoading = $('deck-loading');
+  const splitDeckButtons = $('split-deck-buttons');
+  const btnDrawNumbers = $('btn-draw-numbers');
+  const btnDrawOperators = $('btn-draw-operators');
+  const numberPileCount = $('number-pile-count');
+  const operatorPileCount = $('operator-pile-count');
   const toastEl = $('toast');
   const helpPanel = $('help-panel');
   const btnCloseHelp = $('btn-close-help');
@@ -404,7 +409,7 @@
     exprHistoryCount++;
     if (exprHistoryEmpty) exprHistoryEmpty.style.display = 'none';
 
-    const syms = { add:'+', sub:'−', mul:'×', div:'÷', mod:'%', pow:'^' };
+    const syms = { add:'+', sub:'−', mul:'×', div:'÷', mod:'%', pow:'^', concat:'‖' };
     const exprStr = expressionCards.map(c => {
       if (c.type === CardType.Number) return c.value;
       return syms[c.operatorKind] || '?';
@@ -581,24 +586,45 @@
       ? gameRules.allowedSpecials
       : [];
     const useSpecials = allowedSpecials.length > 0;
+    const maxVal = gameRules.maxCardValue ?? 9;
+
+    // Use deck composition percentages if set, else defaults
+    const numPct   = (gameRules.deckNumberPct   ?? 60) / 100;
+    const opPct    = (gameRules.deckOperatorPct  ?? (useSpecials ? 30 : 32)) / 100;
+    // specialPct is the remainder (or explicit)
 
     for (let i = 0; i < 100; i++) {
       const roll = Math.random();
-      if (useSpecials && roll < 0.07) {
+      if (useSpecials && roll >= numPct + opPct) {
         // Special cards — only from allowed list
         deck.push({ type: CardType.Special, specialKind: allowedSpecials[Math.floor(Math.random() * allowedSpecials.length)] });
-      } else if (roll < (useSpecials ? 0.37 : 0.32)) {
+      } else if (roll >= numPct) {
         // Operators — only from allowed list
         deck.push({ type: CardType.Operator, operatorKind: allowedOps[Math.floor(Math.random() * allowedOps.length)] });
       } else {
-        deck.push({ type: CardType.Number, value: Math.floor(Math.random() * 10) });
+        deck.push({ type: CardType.Number, value: Math.floor(Math.random() * (maxVal + 1)) });
       }
     }
+
     // Shuffle
     for (let i = deck.length - 1; i > 0; i--) {
       const j = Math.floor(Math.random() * (i + 1));
       [deck[i], deck[j]] = [deck[j], deck[i]];
     }
+
+    // Split deck support for local games
+    if (gameRules.splitDeck) {
+      gameState.numberPile   = deck.filter(c => c.type === CardType.Number);
+      gameState.operatorPile = deck.filter(c => c.type !== CardType.Number);
+      // Shuffle each sub-pile
+      for (const pile of [gameState.numberPile, gameState.operatorPile]) {
+        for (let i = pile.length - 1; i > 0; i--) {
+          const j = Math.floor(Math.random() * (i + 1));
+          [pile[i], pile[j]] = [pile[j], pile[i]];
+        }
+      }
+    }
+
     return deck;
   }
 
@@ -617,10 +643,10 @@
     }
   }
 
-  function drawCard(playerId, silent = false) {
+  function drawCard(playerId, silent = false, pileChoice) {
     // ── Online: send to server ──
     if (onlineGame && playerId === myPlayerId) {
-      netAction('draw').then(res => {
+      netAction('draw', pileChoice ? { pile: pileChoice } : {}).then(res => {
         if (!res.ok) toast(res.error || 'Cannot draw', 'warning');
       });
       return;
@@ -643,7 +669,45 @@
       }
     }
 
-    // Draw from deck
+    // ── Split deck: draw from specific pile ──
+    if (gameRules.splitDeck && gameState.numberPile && gameState.operatorPile) {
+      let pile;
+      if (pileChoice === 'numbers') pile = gameState.numberPile;
+      else if (pileChoice === 'operators') pile = gameState.operatorPile;
+      else {
+        // Auto-choose: pick from whichever pile has cards (prefer the one with more)
+        if (gameState.numberPile.length > 0 && gameState.operatorPile.length > 0)
+          pile = Math.random() < 0.5 ? gameState.numberPile : gameState.operatorPile;
+        else pile = gameState.numberPile.length > 0 ? gameState.numberPile : gameState.operatorPile;
+      }
+      if (pile.length === 0) {
+        // Try reshuffling discard into the empty pile
+        const isNumPile = pile === gameState.numberPile;
+        const discards = gameState.discardPile.filter(c => isNumPile ? c.type === CardType.Number : c.type !== CardType.Number);
+        if (discards.length === 0) return null;
+        gameState.discardPile = gameState.discardPile.filter(c => isNumPile ? c.type !== CardType.Number : c.type === CardType.Number);
+        for (const c of discards) pile.push(c);
+        for (let i = pile.length - 1; i > 0; i--) {
+          const j = Math.floor(Math.random() * (i + 1));
+          [pile[i], pile[j]] = [pile[j], pile[i]];
+        }
+        toast(`🔄 ${isNumPile ? 'Number' : 'Operator'} pile reshuffled!`, 'info');
+        if (window.SFX) SFX.play('reshuffle');
+      }
+      const card = pile.pop();
+      if (card) {
+        player.hand.push(card);
+        gameState.matchStats.players[playerId - 1].cardsDrawn++;
+        if (!silent) {
+          const playerName = gameState.players[playerId - 1].name || `Player ${playerId}`;
+          dbg(`[${playerName}] Drew card from ${pileChoice || 'auto'}: ${card.type === CardType.Number ? card.value : 'OP'}`);
+          if (window.SFX) SFX.play('cardDraw');
+        }
+      }
+      return card;
+    }
+
+    // Draw from deck (single pile mode)
     if (gameState.deck.length === 0) {
       // Reshuffle discard pile
       if (gameState.discardPile.length === 0) {
@@ -730,7 +794,7 @@
     } catch (_) {}
   }
 
-  function handleDrawClick() {
+  function handleDrawClick(pileChoice) {
     if (gameState.gameOver) return;
     if (!canMakeMove()) {
       toast('Not your turn', 'warning');
@@ -739,7 +803,8 @@
 
     // ── Online: send to server ──
     if (onlineGame) {
-      netAction('draw').then(res => {
+      const data = pileChoice ? { pile: pileChoice } : {};
+      netAction('draw', data).then(res => {
         if (!res.ok) toast(res.error || 'Cannot draw', 'warning');
       });
       return;
@@ -763,13 +828,15 @@
 
     let drawn = 0;
     for (let i = 0; i < remaining; i++) {
-      const card = drawCard(playerId);
+      const card = drawCard(playerId, false, pileChoice);
       if (!card) {
         if (drawn === 0) toast('No cards left to draw', 'info');
         break;
       }
       drawn++;
-      animateCardFly(btnDraw, targetHand, card.type === CardType.Number ? String(card.value) : 'OP');
+      const flyFrom = (pileChoice === 'numbers' && btnDrawNumbers) ? btnDrawNumbers :
+                       (pileChoice === 'operators' && btnDrawOperators) ? btnDrawOperators : btnDraw;
+      animateCardFly(flyFrom, targetHand, card.type === CardType.Number ? String(card.value) : 'OP');
     }
 
     if (drawn > 0) {
@@ -785,8 +852,10 @@
 
   function dealInitialHands() {
     for (let i = 0; i < gameRules.handSize; i++) {
-      drawCard(1);
-      drawCard(2);
+      // For split deck: alternate between number and operator piles for balanced hand
+      const pile = gameRules.splitDeck ? (i % 2 === 0 ? 'numbers' : 'operators') : undefined;
+      drawCard(1, true, pile);
+      drawCard(2, true, pile);
     }
     if (localStorage.getItem('mmtp-auto-sort-hand') === 'true') {
       sortHand(1);
@@ -813,6 +882,9 @@
         const value = document.createElement('div');
         value.className = 'card-value';
         value.textContent = card.value;
+        // Shrink font for multi-digit numbers
+        if (card.value >= 10 && card.value < 100) value.classList.add('card-value-2digit');
+        else if (card.value >= 100) value.classList.add('card-value-3digit');
         content.appendChild(value);
         const type = document.createElement('div');
         type.className = 'card-type';
@@ -823,15 +895,19 @@
         if (card.operatorKind === OperatorKind.Mod || card.operatorKind === OperatorKind.Pow) {
           cardEl.classList.add('card-advanced-op');
         }
+        if (card.operatorKind === OperatorKind.Concat) {
+          cardEl.classList.add('card-concat-op');
+        }
         const op = document.createElement('div');
         op.className = 'card-operator';
-        const opSymbols = { add: '+', sub: '−', mul: '×', div: '÷', mod: '%', pow: '^' };
+        const opSymbols = { add: '+', sub: '−', mul: '×', div: '÷', mod: '%', pow: '^', concat: '‖' };
         op.textContent = opSymbols[card.operatorKind] || '?';
         content.appendChild(op);
         const type = document.createElement('div');
         type.className = 'card-type';
         type.textContent = (card.operatorKind === OperatorKind.Mod) ? 'Modulo' :
-                           (card.operatorKind === OperatorKind.Pow) ? 'Power' : 'Operator';
+                           (card.operatorKind === OperatorKind.Pow) ? 'Power' :
+                           (card.operatorKind === OperatorKind.Concat) ? 'Concat' : 'Operator';
         content.appendChild(type);
       } else if (card.type === CardType.Special) {
         cardEl.classList.add('special-card', `special-${card.specialKind}`);
@@ -1430,13 +1506,17 @@
     const existing = document.querySelector('.wild-picker-overlay');
     if (existing) existing.remove();
 
+    const maxVal = gameRules.maxCardValue ?? 9;
+    const nums = [];
+    for (let n = 0; n <= maxVal; n++) nums.push(n);
+
     const overlay = document.createElement('div');
     overlay.className = 'wild-picker-overlay';
     overlay.innerHTML = `
       <div class="wild-picker">
-        <div class="wild-picker-title">Choose a number (0-9)</div>
-        <div class="wild-picker-grid">
-          ${[0,1,2,3,4,5,6,7,8,9].map(n => 
+        <div class="wild-picker-title">Choose a number (0-${maxVal})</div>
+        <div class="wild-picker-grid ${maxVal > 9 ? 'wild-picker-grid-large' : ''}">
+          ${nums.map(n => 
             `<button class="wild-picker-btn" data-value="${n}">${n}</button>`
           ).join('')}
         </div>
@@ -1539,7 +1619,7 @@
       const oppIdx = oppHand.indexOf(oppCard);
       myHand[myIdx] = oppCard;
       oppHand[oppIdx] = myCard;
-      const opSym = k => ({ add:'+', sub:'−', mul:'×', div:'÷', mod:'%', pow:'^' }[k] || '?');
+      const opSym = k => ({ add:'+', sub:'−', mul:'×', div:'÷', mod:'%', pow:'^', concat:'‖' }[k] || '?');
       const gaveLabel = myCard.type === CardType.Number ? myCard.value : opSym(myCard.operatorKind);
       const gotLabel = oppCard.type === CardType.Number ? oppCard.value : opSym(oppCard.operatorKind);
       toast(`🔄 Swapped ${gaveLabel} ↔ ${gotLabel}`, 'success');
@@ -1564,7 +1644,7 @@
       if (c.type === CardType.Number) {
         cardsHtml += `<div class="peek-card peek-number">${c.value}</div>`;
       } else if (c.type === CardType.Operator) {
-        const opSymbol = { add:'+', sub:'−', mul:'×', div:'÷', mod:'%', pow:'^' }[c.operatorKind] || '?';
+        const opSymbol = { add:'+', sub:'−', mul:'×', div:'÷', mod:'%', pow:'^', concat:'‖' }[c.operatorKind] || '?';
         cardsHtml += `<div class="peek-card peek-operator">${opSymbol}</div>`;
       } else if (c.type === CardType.Special) {
         const iconMap = { wild: '★', reroll: '🎯', double: '×2', peek: '👁', swap: '🔄' };
@@ -1725,7 +1805,7 @@
         cardEl.textContent = card.parenKind === 'close' ? ')' : '(';
         cardEl.classList.add('paren-token');
       } else {
-        const opSymbols = { add: '+', sub: '−', mul: '×', div: '÷', mod: '%', pow: '^' };
+        const opSymbols = { add: '+', sub: '−', mul: '×', div: '÷', mod: '%', pow: '^', concat: '‖' };
         cardEl.textContent = opSymbols[card.operatorKind] || '?';
       }
       
@@ -1955,7 +2035,7 @@
     if (!expr) return '';
     if (typeof expr === 'string') return expr;
     if (!Array.isArray(expr)) return String(expr);
-    const opSyms = { add:'+', sub:'−', mul:'×', div:'÷', mod:'%', pow:'^' };
+    const opSyms = { add:'+', sub:'−', mul:'×', div:'÷', mod:'%', pow:'^', concat:'‖' };
     return expr.map(c => {
       if (c.type === CardType.Number) return c.value;
       if (c.type === CardType.Operator) return opSyms[c.operatorKind] || '?';
@@ -2032,7 +2112,7 @@
         const playerName = gameState.players[gameState.activePlayer - 1].name || `Player ${gameState.activePlayer}`;
         const exprStr = gameState.playfield.map(c => {
           if (c.type === CardType.Number) return c.value;
-          const syms = { add:'+', sub:'−', mul:'×', div:'÷', mod:'%', pow:'^' };
+          const syms = { add:'+', sub:'−', mul:'×', div:'÷', mod:'%', pow:'^', concat:'‖' };
           return syms[c.operatorKind] || '?';
         }).join(' ');
         const tag = isExact ? 'SCORED!' : `NEAR SCORE (off by ${diff})`;
@@ -2878,8 +2958,24 @@
   }
 
   function updateDeckCount() {
-    if (deckCount) {
-      // Online mode: deck array is sized to match server's deckCount; discard pile is local-only
+    const isSplit = !!gameRules.splitDeck;
+    
+    // Toggle deck UI based on split deck rule
+    if (btnDraw) btnDraw.classList.toggle('hidden', isSplit);
+    if (splitDeckButtons) splitDeckButtons.classList.toggle('hidden', !isSplit);
+    
+    if (isSplit) {
+      // Split deck mode: show counts for each pile
+      if (onlineGame) {
+        if (numberPileCount) numberPileCount.textContent = gameState._numberPileCount ?? '?';
+        if (operatorPileCount) operatorPileCount.textContent = gameState._operatorPileCount ?? '?';
+      } else {
+        // Local game: read from local piles
+        if (numberPileCount) numberPileCount.textContent = (gameState.numberPile?.length ?? 0);
+        if (operatorPileCount) operatorPileCount.textContent = (gameState.operatorPile?.length ?? 0);
+      }
+    } else if (deckCount) {
+      // Single deck mode
       const total = onlineGame
         ? gameState.deck.length
         : gameState.deck.length + gameState.discardPile.length;
@@ -3015,9 +3111,12 @@
       ['Nearest Threshold', r.nearestThreshold ?? r.nearestScoreThreshold ?? 2],
       ['Allow Negative', r.allowNegative ? 'Yes' : 'No'],
       ['Calc Order', r.operatorPrecedence === 'standard' ? 'PEMDAS' : 'Left-to-Right'],
+      ['Split Deck', r.splitDeck ? 'Yes' : 'No'],
+      ['Max Card #', r.maxCardValue ?? 9],
+      ['Deck %', `${r.deckNumberPct ?? 63}N / ${r.deckOperatorPct ?? 30}O / ${r.deckSpecialPct ?? 7}S`],
     ];
     if (r.allowedOperators && r.allowedOperators.length > 0) {
-      const opNames = { add: '+', sub: '−', mul: '×', div: '÷', mod: '%', pow: '^' };
+      const opNames = { add: '+', sub: '−', mul: '×', div: '÷', mod: '%', pow: '^', concat: '‖' };
       rows.push(['Operators', r.allowedOperators.map(o => opNames[o] || o).join(' ')]);
     }
     if (r.allowedSpecials && r.allowedSpecials.length > 0) {
@@ -3099,6 +3198,22 @@
       handleDrawClick();
     }
   });
+
+  // Split deck draw buttons
+  if (btnDrawNumbers) {
+    btnDrawNumbers.addEventListener('click', () => {
+      if (gameState.activePlayer === 1 && !gameState.gameOver) {
+        handleDrawClick('numbers');
+      }
+    });
+  }
+  if (btnDrawOperators) {
+    btnDrawOperators.addEventListener('click', () => {
+      if (gameState.activePlayer === 1 && !gameState.gameOver) {
+        handleDrawClick('operators');
+      }
+    });
+  }
   
   function doRehand(playerId, bypassCheck = false) {
     if (gameState.gameOver) return;
@@ -3154,9 +3269,10 @@
     // Delay new card draw so scatter animation completes first
     const drawDelay = localStorage.getItem('mmtp-card-animations') !== 'false' ? 380 : 0;
     setTimeout(() => {
-      // Draw new hand
+      // Draw new hand (alternate piles for split deck balance)
       for (let i = 0; i < toDraw; i++) {
-        const c = drawCard(playerId);
+        const pile = gameRules.splitDeck ? (i % 2 === 0 ? 'numbers' : 'operators') : undefined;
+        const c = drawCard(playerId, false, pile);
         if (c) {
           // Staggered deal-in animation
           setTimeout(() => {
@@ -3308,7 +3424,7 @@
     if (!player?.hand) return;
     // Numbers first (ascending), then operators, then specials
     const typeOrder = { [CardType.Number]: 0, [CardType.Operator]: 1, [CardType.Special]: 2 };
-    const opOrder = { [OperatorKind.Add]: 0, [OperatorKind.Sub]: 1, [OperatorKind.Mul]: 2, [OperatorKind.Div]: 3, [OperatorKind.Mod]: 4, [OperatorKind.Pow]: 5 };
+    const opOrder = { [OperatorKind.Add]: 0, [OperatorKind.Sub]: 1, [OperatorKind.Mul]: 2, [OperatorKind.Div]: 3, [OperatorKind.Mod]: 4, [OperatorKind.Pow]: 5, [OperatorKind.Concat]: 6 };
     const specOrder = { [SpecialKind.Wild]: 0, [SpecialKind.Reroll]: 1, [SpecialKind.Double]: 2, [SpecialKind.Peek]: 3, [SpecialKind.Swap]: 4 };
     player.hand.sort((a, b) => {
       if (a.type !== b.type) return (typeOrder[a.type] ?? 99) - (typeOrder[b.type] ?? 99);

@@ -27,7 +27,8 @@
   function valueMatchesTarget(value, target) {
     const gameRules = GP.rules;
     if (value === target) return true;
-    if (gameRules.nearestScore && Math.abs(value - target) <= 2) return true;
+    const thresh = gameRules.nearestThreshold ?? 2;
+    if (gameRules.nearestScore && Math.abs(value - target) <= thresh) return true;
     return false;
   }
 
@@ -561,8 +562,11 @@
                 return true;
               })
               .sort((a, b) => {
-                // Sort by priority: multiplication operators first for large targets, then numbers close to target
+                // Sort by priority: concat/multiplication operators first for large targets, then numbers close to target
                 if (targetSize === 'large' || isVeryLargeTarget) {
+                  // Concat is highest priority for large targets
+                  if (a.card.type === CardType.Operator && a.card.operatorKind === OperatorKind.Concat) return -1;
+                  if (b.card.type === CardType.Operator && b.card.operatorKind === OperatorKind.Concat) return 1;
                   if (a.card.type === CardType.Operator && a.card.operatorKind === OperatorKind.Mul) return -1;
                   if (b.card.type === CardType.Operator && b.card.operatorKind === OperatorKind.Mul) return 1;
                   if (a.card.type === CardType.Number && a.card.value >= 5 && b.card.type === CardType.Number && b.card.value < 5) return -1;
@@ -617,8 +621,11 @@
                 const isAhead = (targetPlayer === 1 && scoreDifference > 2) || (targetPlayer === 2 && scoreDifference < -2);
                 
                 if (targetSize === 'large' || isVeryLargeTarget) {
-                  // Large/very large targets: prioritize multiplication chains
-                  if (card.type === CardType.Operator && card.operatorKind === OperatorKind.Mul) {
+                  // Large/very large targets: prioritize concat and multiplication chains
+                  if (card.type === CardType.Operator && card.operatorKind === OperatorKind.Concat) {
+                    priority = isVeryLargeTarget ? 60 : 40; // Concat is most powerful for large numbers
+                    if (isBehind) priority += 10;
+                  } else if (card.type === CardType.Operator && card.operatorKind === OperatorKind.Mul) {
                     priority = isVeryLargeTarget ? 50 : 30; // Even higher priority for very large targets
                     // Bonus if behind in score
                     if (isBehind) priority += 10;
@@ -1025,6 +1032,18 @@
                       result = Math.floor(bestNum.value / num.value);
                     }
                     break;
+                  case OperatorKind.Mod:
+                    if (num.value === 0) { isValidOperation = false; result = 0; }
+                    else result = bestNum.value % num.value;
+                    break;
+                  case OperatorKind.Pow:
+                    if (num.value < 0) { isValidOperation = false; result = 0; }
+                    else { result = Math.pow(bestNum.value, num.value); if (!isFinite(result)) isValidOperation = false; }
+                    break;
+                  case OperatorKind.Concat:
+                    result = parseInt('' + bestNum.value + num.value, 10);
+                    break;
+                  default: isValidOperation = false; result = 0; break;
                 }
                 
                 // Skip invalid operations
@@ -1039,8 +1058,13 @@
                 const isBehind = (targetPlayer === 1 && scoreDifference < 0) || (targetPlayer === 2 && scoreDifference > 0);
                 
                 if (target > 50 || isVeryLargeTarget) {
-                  // Large targets: heavily favor multiplication
-                  if (op.operatorKind === OperatorKind.Mul) {
+                  // Large targets: heavily favor concat and multiplication
+                  if (op.operatorKind === OperatorKind.Concat) {
+                    priority = isVeryLargeTarget ? 60 : 45; // Concat is best for big numbers
+                    if (result >= target * 0.5 && result <= target * 1.5) priority += 25;
+                    if (result >= target * 0.8 && result <= target * 1.2) priority += 20;
+                    if (isBehind) priority += 10;
+                  } else if (op.operatorKind === OperatorKind.Mul) {
                     priority = isVeryLargeTarget ? 50 : 40; // Even higher for very large targets
                     // Bonus if multiplication creates a good intermediate value
                     if (result >= target * 0.5 && result <= target * 1.5) priority += 20;
@@ -1052,7 +1076,7 @@
                     // For very large targets, addition is less useful unless we're building a chain
                     if (isVeryLargeTarget && diff > 30) priority = 5;
                   }
-                  // For numbers: prefer larger numbers for multiplication chains
+                  // For numbers: prefer larger numbers for concat/multiplication chains
                   if (num.value >= 5) priority += 5;
                   if (num.value >= 7) priority += 5;
                 } else if (target <= 20) {
@@ -1184,6 +1208,10 @@
                             case OperatorKind.Sub: testResult = currentValue - num.value; break;
                             case OperatorKind.Mul: testResult = currentValue * num.value; break;
                             case OperatorKind.Div: testResult = num.value !== 0 ? Math.floor(currentValue / num.value) : currentValue; break;
+                            case OperatorKind.Mod: testResult = num.value !== 0 ? currentValue % num.value : currentValue; break;
+                            case OperatorKind.Pow: testResult = Math.pow(currentValue, num.value); if (!isFinite(testResult)) testResult = currentValue; break;
+                            case OperatorKind.Concat: testResult = parseInt('' + currentValue + num.value, 10); break;
+                            default: testResult = currentValue; break;
                           }
                           const testDiff = Math.abs(testResult - target);
                           // More lenient improvement detection for large targets
@@ -1278,7 +1306,17 @@
           GP.dbg(`[BOT ${botName}] PHASE 4A: Drawing ${canDraw} card(s) (${currentHand.length}/${handLimit}, ${totalCardsAvailable} cards available)`);
           let actuallyDrawn = 0;
           for (let i = 0; i < canDraw; i++) {
-            const drawn = GP.drawCard(targetPlayer);
+            // Smart pile choice for split deck mode
+            let pileChoice;
+            if (gameRules.splitDeck) {
+              const nums = currentHand.filter(c => c.type === CardType.Number).length;
+              const ops = currentHand.filter(c => c.type === CardType.Operator).length;
+              // Need more numbers if low, more operators if low
+              if (nums <= 1 && ops >= 2) pileChoice = 'numbers';
+              else if (ops <= 1 && nums >= 2) pileChoice = 'operators';
+              else pileChoice = Math.random() < 0.55 ? 'numbers' : 'operators';
+            }
+            const drawn = GP.drawCard(targetPlayer, false, pileChoice);
             if (drawn) {
               gameState.drawsThisTurn++;
               actuallyDrawn++;
@@ -1339,6 +1377,10 @@
                   case OperatorKind.Sub: result = num1.value - num2.value; break;
                   case OperatorKind.Mul: result = num1.value * num2.value; break;
                   case OperatorKind.Div: result = num2.value !== 0 ? Math.floor(num1.value / num2.value) : num1.value; break;
+                  case OperatorKind.Mod: result = num2.value !== 0 ? num1.value % num2.value : num1.value; break;
+                  case OperatorKind.Pow: result = Math.pow(num1.value, num2.value); if (!isFinite(result)) result = num1.value; break;
+                  case OperatorKind.Concat: result = parseInt('' + num1.value + num2.value, 10); break;
+                  default: result = num1.value; break;
                 }
                 if (Math.abs(result - target) <= 20) {
                   canBuildUseful = true;
@@ -1385,6 +1427,7 @@
                     case OperatorKind.Add: result = card.value + n.value; break;
                     case OperatorKind.Sub: result = Math.abs(card.value - n.value); break;
                     case OperatorKind.Mul: result = card.value * n.value; break;
+                    case OperatorKind.Concat: result = parseInt('' + card.value + n.value, 10); break;
                     default: return false;
                   }
                   return Math.abs(result - target) <= 15;
@@ -1492,6 +1535,10 @@
                   case OperatorKind.Sub: result = Math.abs(num1.value - num2.value); break;
                   case OperatorKind.Mul: result = num1.value * num2.value; break;
                   case OperatorKind.Div: result = num2.value !== 0 ? Math.floor(num1.value / num2.value) : num1.value; break;
+                  case OperatorKind.Mod: result = num2.value !== 0 ? num1.value % num2.value : num1.value; break;
+                  case OperatorKind.Pow: result = Math.pow(num1.value, num2.value); if (!isFinite(result)) result = num1.value; break;
+                  case OperatorKind.Concat: result = parseInt('' + num1.value + num2.value, 10); break;
+                  default: result = num1.value; break;
                 }
                 if (Math.abs(result - target) <= 30) {
                   canBuildAnythingUseful = true;

@@ -139,6 +139,8 @@ class Room {
       deckNumberPct: num(rules.deckNumberPct, 63),
       deckOperatorPct: num(rules.deckOperatorPct, 30),
       deckSpecialPct: num(rules.deckSpecialPct, 7),
+      splitDeck: !!rules.splitDeck,
+      maxCardValue: num(rules.maxCardValue, 9),
       allowBots: rules.allowBots || false,
       botDifficulty: rules.botDifficulty || 'medium',
       // QoL: operator & special card selection

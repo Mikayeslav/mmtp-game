@@ -433,6 +433,12 @@ body {
   font-weight: bold;
   color: var(--text);
 }
+.card-value.card-value-2digit {
+  font-size: 18px;
+}
+.card-value.card-value-3digit {
+  font-size: 14px;
+}
 
 .card-type {
   font-size: 10px;
@@ -460,6 +466,19 @@ body {
   color: #a29bfe;
 }
 
+/* Concat operator card */
+.card.card-concat-op {
+  background: linear-gradient(135deg, #1a3a2e 0%, #0d4a35 100%);
+  border-color: #00b894;
+}
+.card-concat-op .card-operator {
+  color: #55efc4;
+  font-weight: bold;
+  font-size: 1.5rem;
+}
+.card-concat-op .card-type {
+  color: #55efc4;
+}
 
 /* Special Cards */
 .special-card {
@@ -585,6 +604,18 @@ body {
 }
 .wild-picker-cancel:hover {
   background: var(--card-bg);
+}
+
+/* Extended wild picker for maxCardValue > 9 */
+.wild-picker-grid-large {
+  grid-template-columns: repeat(10, 1fr);
+  max-height: 300px;
+  overflow-y: auto;
+}
+.wild-picker-grid-large .wild-picker-btn {
+  width: 36px;
+  height: 36px;
+  font-size: 0.9rem;
 }
 
 /* Peek Overlay */
@@ -956,6 +987,35 @@ body {
 .deck-button:disabled {
   opacity: 0.5;
   cursor: not-allowed;
+}
+
+.deck-button.hidden {
+  display: none;
+}
+
+/* Split Deck Buttons */
+.split-deck-buttons {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.split-deck-buttons.hidden {
+  display: none;
+}
+.deck-button-split {
+  width: 72px;
+  height: 50px;
+  font-size: 10px;
+  gap: 2px;
+}
+.deck-button-split .deck-icon {
+  font-size: 16px;
+}
+.deck-button-split .deck-label {
+  font-size: 9px;
+}
+.deck-button-split .deck-count {
+  font-size: 10px;
 }
 
 .deck-icon {

@@ -26,9 +26,10 @@
   const { CardType, OperatorKind, evaluate: sharedEvaluate } = window.MMtpExpression;
 
   /** Check if a value matches the target (exact or within nearest-score threshold) */
-  function botValueMatchesTarget(value, target, nearestScore) {
+  function botValueMatchesTarget(value, target, nearestScore, nearestThreshold) {
     if (value === target) return true;
-    if (nearestScore && Math.abs(value - target) <= 2) return true;
+    const thresh = nearestThreshold ?? 2;
+    if (nearestScore && Math.abs(value - target) <= thresh) return true;
     return false;
   }
 
@@ -219,6 +220,10 @@
         if (rightVal < 0) return null;
         const r = Math.pow(left, rightVal);
         return isFinite(r) ? Math.round(r) : null;
+      }
+      case OperatorKind.Concat: {
+        if (left < 0 || rightVal < 0) return null;
+        return parseInt('' + left + rightVal, 10);
       }
       default: return null;
     }

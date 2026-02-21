@@ -219,6 +219,9 @@
     if (gameState.deck.length !== deckCountDisplay) {
       gameState.deck = new Array(deckCountDisplay).fill(null);
     }
+    // Split deck pile counts
+    gameState._numberPileCount = serverState.numberPileCount ?? 0;
+    gameState._operatorPileCount = serverState.operatorPileCount ?? 0;
 
     // ── Sync rules from server (hand limit, draw limits, etc.) ──
     if (serverState.rules) {
@@ -235,6 +238,8 @@
       if (r.minDrawPerClick !== undefined) gameRules.minDrawPerClick = r.minDrawPerClick;
       if (r.allowNegative !== undefined) gameRules.allowNegative = r.allowNegative;
       if (r.operatorPrecedence !== undefined) gameRules.operatorPrecedence = r.operatorPrecedence;
+      if (r.splitDeck !== undefined) gameRules.splitDeck = r.splitDeck;
+      if (r.maxCardValue !== undefined) gameRules.maxCardValue = r.maxCardValue;
     }
 
     // ── Player avatars/titles ──

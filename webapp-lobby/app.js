@@ -53,6 +53,7 @@
     handLimit: 12, allowNegative: false, nearestScore: false, nearestThreshold: 2,
     operatorPrecedence: 'left-to-right',
     deckNumberPct: 63, deckOperatorPct: 30, deckSpecialPct: 7,
+    splitDeck: false, maxCardValue: 9,
     botDifficulty: 'medium',
     allowedOperators: ['add', 'sub', 'mul', 'div'],        // default: basic 4
     allowedSpecials: ['wild', 'reroll', 'double', 'peek', 'swap'],  // default: all
@@ -77,6 +78,7 @@
     deckNumberPct: [30, 90],
     deckOperatorPct: [10, 60],
     deckSpecialPct: [0, 25],
+    maxCardValue: [9, 99],
   };
 
   let tabId = sessionStorage.getItem(TAB_ID_KEY);
@@ -192,6 +194,8 @@
   const ruleAllowNegative = $('rule-allow-negative');
   const ruleNearestThreshold = $('rule-nearest-threshold');
   const rulePrecedence = $('rule-precedence');
+  const ruleSplitDeck = $('rule-split-deck');
+  const ruleMaxCardVal = $('rule-max-card-val');
   const ruleDeckNumbers = $('rule-deck-numbers');
   const ruleDeckOperators = $('rule-deck-operators');
   const ruleDeckSpecials = $('rule-deck-specials');
@@ -428,15 +432,17 @@
     o.deckNumberPct = clamp('deckNumberPct', DEFAULTS.deckNumberPct);
     o.deckOperatorPct = clamp('deckOperatorPct', DEFAULTS.deckOperatorPct);
     o.deckSpecialPct = clamp('deckSpecialPct', DEFAULTS.deckSpecialPct);
+    o.maxCardValue = clamp('maxCardValue', DEFAULTS.maxCardValue);
     // Boolean fields
     o.allowNegative = !!o.allowNegative;
     o.nearestScore = !!o.nearestScore;
+    o.splitDeck = !!o.splitDeck;
     // Auto-enable negatives if target range includes negative values
     if (o.targetMin < 0) o.allowNegative = true;
     // Operator precedence
     o.operatorPrecedence = ['left-to-right', 'standard'].includes(o.operatorPrecedence) ? o.operatorPrecedence : 'left-to-right';
     // Pass through array fields (validated, not clamped)
-    const validOps = ['add', 'sub', 'mul', 'div', 'mod', 'pow'];
+    const validOps = ['add', 'sub', 'mul', 'div', 'mod', 'pow', 'concat'];
     const validSpecials = ['wild', 'reroll', 'double', 'peek', 'swap', 'paren'];
     o.allowedOperators = Array.isArray(o.allowedOperators)
       ? o.allowedOperators.filter(op => validOps.includes(op))
@@ -741,7 +747,7 @@
                         if (!c) return '?';
                         if (c.type === 'number') return c.value;
                         if (c.type === 'operator') {
-                          const syms = { add:'+', sub:'−', mul:'×', div:'÷', mod:'%', pow:'^' };
+                          const syms = { add:'+', sub:'−', mul:'×', div:'÷', mod:'%', pow:'^', concat:'‖' };
                           return syms[c.operatorKind] || c.operatorKind || '?';
                         }
                         return '★';
@@ -752,14 +758,14 @@
               const exprCount = myStats?.expressionsScored?.length || 0;
               const cardsPlayed = myStats?.cardsPlayed || 0;
               el.innerHTML = `<div class="history-row-main">`
-                + `<span class="history-result ${resultClass}">${resultText}</span>`
+                + `<span class="history-result ${resultClass}">${escapeHtml(resultText)}</span>`
                 + `<span class="history-info">`
-                  + `<span class="history-vs">${modeIcon} vs ${opponent}</span>`
-                  + `<span class="history-meta">${m.scores?.p1 ?? 0}–${m.scores?.p2 ?? 0} · ${dur} · ${ago}</span>`
+                  + `<span class="history-vs">${modeIcon} vs ${escapeHtml(opponent)}</span>`
+                  + `<span class="history-meta">${m.scores?.p1 ?? 0}–${m.scores?.p2 ?? 0} · ${escapeHtml(dur)} · ${escapeHtml(ago)}</span>`
                 + `</span>`
                 + `</div>`
                 + (bestExpr || exprCount ? `<div class="history-row-detail">`
-                  + (bestExpr ? `<span class="history-best" title="Best expression">★ ${bestExpr}</span>` : '')
+                  + (bestExpr ? `<span class="history-best" title="Best expression">★ ${escapeHtml(bestExpr)}</span>` : '')
                   + `<span class="history-extra">${exprCount} expr · ${cardsPlayed} cards</span>`
                   + `</div>` : '');
               historyList.appendChild(el);
@@ -886,6 +892,8 @@
     if (ruleAllowNegative) ruleAllowNegative.checked = !!r.allowNegative;
     if (ruleNearestThreshold) ruleNearestThreshold.value = r.nearestThreshold ?? 2;
     if (rulePrecedence) rulePrecedence.value = r.operatorPrecedence || 'left-to-right';
+    if (ruleSplitDeck) ruleSplitDeck.checked = !!r.splitDeck;
+    if (ruleMaxCardVal) ruleMaxCardVal.value = r.maxCardValue ?? 9;
     // Deck composition sliders
     if (ruleDeckNumbers) { ruleDeckNumbers.value = r.deckNumberPct ?? 63; updateDeckSliderLabel(); }
     if (ruleDeckOperators) { ruleDeckOperators.value = r.deckOperatorPct ?? 30; updateDeckSliderLabel(); }
@@ -954,6 +962,8 @@
       deckNumberPct: ruleDeckNumbers?.value,
       deckOperatorPct: ruleDeckOperators?.value,
       deckSpecialPct: ruleDeckSpecials?.value,
+      splitDeck: !!ruleSplitDeck?.checked,
+      maxCardValue: ruleMaxCardVal?.value,
       specialCards: allowedSpecials.length > 0,
       allowedOperators,
       allowedSpecials,
@@ -1018,15 +1028,15 @@
         renderPlayerBadges(badgeEl, null);
         return;
       }
-      const avatarHtml = d.avatar ? '<span class="player-avatar">' + d.avatar + '</span>' : '';
+      const avatarHtml = d.avatar ? '<span class="player-avatar">' + escapeHtml(d.avatar) + '</span>' : '';
       const readyTag = d.ready ? '<span class="ready-tag ready">READY</span>' : '<span class="ready-tag not-ready">NOT READY</span>';
       const subtitle = [];
-      if (d.title) subtitle.push(d.title);
-      if (d.rating) subtitle.push('⭐ ' + d.rating);
+      if (d.title) subtitle.push(escapeHtml(d.title));
+      if (d.rating) subtitle.push('⭐ ' + escapeHtml(String(d.rating)));
       const subtitleHtml = subtitle.length ? '<span class="player-subtitle">' + subtitle.join(' · ') + '</span>' : '';
       v.innerHTML = avatarHtml +
         '<span class="player-info-col">' +
-          '<span class="player-name-text">' + d.name + '</span>' +
+          '<span class="player-name-text">' + escapeHtml(d.name) + '</span>' +
           subtitleHtml +
         '</span>' +
         readyTag;
@@ -1705,7 +1715,7 @@
     { name: '🧮 Pure Math', rules: { handSize: 7, timer: 30, targetMin: 1, targetMax: 20, winPoints: 5, rehandDrawCount: 5, minDrawPerClick: 1, maxDrawPerTurn: 0, specialCards: false, nearestScore: false, allowedOperators: ['add','sub','mul','div'], allowedSpecials: [] }, builtIn: true },
     { name: '🔥 Chaos', rules: { handSize: 12, timer: 25, targetMin: -50, targetMax: 50, winPoints: 7, rehandDrawCount: 8, minDrawPerClick: 2, maxDrawPerTurn: 5, specialCards: true, nearestScore: true, allowedOperators: ['add','sub','mul','div','mod','pow'], allowedSpecials: ['wild','reroll','double','peek','swap'] }, builtIn: true },
     { name: '👶 Beginner', rules: { handSize: 9, timer: 60, targetMin: 1, targetMax: 10, winPoints: 3, rehandDrawCount: 7, minDrawPerClick: 1, maxDrawPerTurn: 0, specialCards: false, nearestScore: true, allowedOperators: ['add','sub','mul'], allowedSpecials: [] }, builtIn: true },
-    { name: '🤯 Ridiculous Numbers', rules: { handSize: 15, handLimit: 20, timer: 90, targetMin: 100, targetMax: 99999, winPoints: 5, rehandDrawCount: 10, minDrawPerClick: 3, maxDrawPerTurn: 0, specialCards: true, nearestScore: true, nearestThreshold: 5, allowNegative: true, operatorPrecedence: 'standard', allowedOperators: ['add','sub','mul','div','mod','pow'], allowedSpecials: ['wild','reroll','double','peek','swap','paren'], deckNumberPct: 55, deckOperatorPct: 35, deckSpecialPct: 10 }, builtIn: true },
+    { name: '🤯 Ridiculous Numbers', rules: { handSize: 15, handLimit: 20, timer: 90, targetMin: 100, targetMax: 99999, winPoints: 5, rehandDrawCount: 10, minDrawPerClick: 3, maxDrawPerTurn: 0, specialCards: true, nearestScore: true, nearestThreshold: 10, allowNegative: true, operatorPrecedence: 'standard', splitDeck: true, maxCardValue: 99, allowedOperators: ['add','sub','mul','div','mod','pow','concat'], allowedSpecials: ['wild','reroll','double','peek','swap','paren'], deckNumberPct: 55, deckOperatorPct: 35, deckSpecialPct: 10 }, builtIn: true },
   ];
 
   function loadCustomPresets() {
@@ -2707,10 +2717,10 @@
       if (result.ok && result.results && result.results.length > 0) {
         if (lookupResults) {
           lookupResults.innerHTML = result.results.map(p => `
-            <div class="lookup-item" data-code="${p.code}">
-              <span class="lookup-avatar">${p.avatar}</span>
-              <span class="lookup-name">${p.name}</span>
-              <span class="lookup-hint">Lv.${p.level} · ${p.codeHint}</span>
+            <div class="lookup-item" data-code="${escapeHtml(p.code)}">
+              <span class="lookup-avatar">${escapeHtml(p.avatar)}</span>
+              <span class="lookup-name">${escapeHtml(p.name)}</span>
+              <span class="lookup-hint">Lv.${p.level} · ${escapeHtml(p.codeHint)}</span>
             </div>
           `).join('');
           lookupResults.classList.remove('hidden');
@@ -3047,6 +3057,9 @@
     });
   }
   if (ruleAllowNegative) ruleAllowNegative.addEventListener('change', onRulesChange);
+  if (ruleSplitDeck) ruleSplitDeck.addEventListener('change', onRulesChange);
+  if (ruleMaxCardVal) ruleMaxCardVal.addEventListener('change', onRulesChange);
+  if (ruleMaxCardVal) ruleMaxCardVal.addEventListener('blur', onRulesChange);
   if (rulePrecedence) rulePrecedence.addEventListener('change', onRulesChange);
   // Deck composition sliders
   [ruleDeckNumbers, ruleDeckOperators, ruleDeckSpecials].forEach((sl) => {

@@ -22,6 +22,8 @@ class GameEngine {
 
     // Game state (server-authoritative)
     this.deck = [];
+    this.numberPile = [];    // separate pile when splitDeck is on
+    this.operatorPile = [];  // separate pile when splitDeck is on
     this.discardPile = [];
     this.hands = { 1: [], 2: [] };       // playerId -> card[]
     this.playfields = { 1: [], 2: [] };   // playerId -> card[] on their playfield
@@ -54,10 +56,20 @@ class GameEngine {
    * Start the game: create deck, deal hands, start timer.
    */
   start() {
-    this.deck = this._createDeck();
-    this._shuffle(this.deck);
+    const allCards = this._createDeck();
+    if (this.rules.splitDeck) {
+      // Separate into number pile and operator/special pile
+      this.numberPile = allCards.filter(c => c.type === CardType.Number);
+      this.operatorPile = allCards.filter(c => c.type !== CardType.Number);
+      this._shuffle(this.numberPile);
+      this._shuffle(this.operatorPile);
+      this.deck = []; // unused in split mode
+    } else {
+      this.deck = allCards;
+      this._shuffle(this.deck);
+    }
 
-    // Deal initial hands
+    // Deal initial hands (alternate number and operator for a balanced start)
     for (let p = 1; p <= 2; p++) {
       for (let i = 0; i < this.rules.handSize; i++) {
         const card = this._drawFromDeck();
@@ -101,7 +113,7 @@ class GameEngine {
     if (this.gameOver) return { ok: false, error: 'Game is over' };
 
     switch (action) {
-      case 'draw': return this._handleDraw(pid);
+      case 'draw': return this._handleDraw(pid, data.pile);
       case 'placeCard': return this._handlePlace(pid, data.cardId, data.wildValue);
       case 'undoCard': return this._handleUndo(pid);
       case 'clearPlayfield': return this._handleClear(pid);
@@ -116,7 +128,7 @@ class GameEngine {
   }
 
   // ── Draw ──
-  _handleDraw(pid) {
+  _handleDraw(pid, pileChoice) {
     if (pid !== this.activePlayer) return { ok: false, error: 'Not your turn' };
     if (this.rules.maxDrawPerTurn > 0 && this.drawsThisTurn >= this.rules.maxDrawPerTurn) {
       return { ok: false, error: 'Max draws per turn reached' };
@@ -131,7 +143,9 @@ class GameEngine {
     const drawn = [];
     for (let i = 0; i < count; i++) {
       if (hand.length >= this.rules.handLimit) break;
-      const card = this._drawFromDeck();
+      const card = this.rules.splitDeck
+        ? this._drawFromPile(pileChoice)
+        : this._drawFromDeck();
       if (!card) break;
       hand.push(card);
       drawn.push(card);
@@ -139,7 +153,7 @@ class GameEngine {
       this.drawsThisTurn++;
     }
 
-    if (drawn.length === 0) return { ok: false, error: 'Deck is empty' };
+    if (drawn.length === 0) return { ok: false, error: 'Pile is empty' };
 
     this._broadcastState();
     return { ok: true, drawn };
@@ -157,8 +171,9 @@ class GameEngine {
 
     // Wild card: resolve to a number card with chosen value
     if (card.type === CardType.Special && card.specialKind === SpecialKind.Wild) {
-      if (wildValue === undefined || wildValue < 0 || wildValue > 9) {
-        return { ok: false, error: 'Wild card requires a value 0-9' };
+      const maxVal = this.rules.maxCardValue ?? 9;
+      if (wildValue === undefined || wildValue < 0 || wildValue > maxVal) {
+        return { ok: false, error: `Wild card requires a value 0-${maxVal}` };
       }
       card = { id: card.id, type: CardType.Number, value: wildValue, wasWild: true };
     }
@@ -397,7 +412,7 @@ class GameEngine {
   // ── Sort hand ──
   _handleSort(pid) {
     const typeOrder = { [CardType.Number]: 0, [CardType.Operator]: 1, [CardType.Special]: 2 };
-    const opOrder = { [OperatorKind.Add]: 0, [OperatorKind.Sub]: 1, [OperatorKind.Mul]: 2, [OperatorKind.Div]: 3, [OperatorKind.Mod]: 4, [OperatorKind.Pow]: 5 };
+    const opOrder = { [OperatorKind.Add]: 0, [OperatorKind.Sub]: 1, [OperatorKind.Mul]: 2, [OperatorKind.Div]: 3, [OperatorKind.Mod]: 4, [OperatorKind.Pow]: 5, [OperatorKind.Concat]: 6 };
     const specOrder = { [SpecialKind.Wild]: 0, [SpecialKind.Reroll]: 1, [SpecialKind.Double]: 2, [SpecialKind.Peek]: 3, [SpecialKind.Swap]: 4 };
     this.hands[pid].sort((a, b) => {
       if (a.type !== b.type) return (typeOrder[a.type] ?? 99) - (typeOrder[b.type] ?? 99);
@@ -628,10 +643,11 @@ class GameEngine {
           operatorKind: allowedOps[Math.floor(Math.random() * allowedOps.length)],
         });
       } else {
+        const maxVal = this.rules.maxCardValue ?? 9;
         deck.push({
           id: this._nextCardId++,
           type: CardType.Number,
-          value: Math.floor(Math.random() * 10),
+          value: Math.floor(Math.random() * (maxVal + 1)),
         });
       }
     }
@@ -646,6 +662,14 @@ class GameEngine {
   }
 
   _drawFromDeck() {
+    // In split deck mode, draw alternately for balanced dealing
+    if (this.rules.splitDeck) {
+      // Alternate: even draws from numbers, odd from operators
+      if (this.numberPile.length > 0 && this.operatorPile.length > 0) {
+        return (Math.random() < 0.5) ? this.numberPile.pop() : this.operatorPile.pop();
+      }
+      return this.numberPile.pop() || this.operatorPile.pop() || null;
+    }
     if (this.deck.length === 0) {
       // Reshuffle discard pile
       if (this.discardPile.length === 0) return null;
@@ -657,6 +681,36 @@ class GameEngine {
     return this.deck.pop() || null;
   }
 
+  /**
+   * Draw from a specific pile (split deck mode).
+   * @param {'numbers'|'operators'} pileChoice - Which pile to draw from
+   */
+  _drawFromPile(pileChoice) {
+    if (pileChoice === 'numbers') {
+      if (this.numberPile.length === 0) {
+        // Reshuffle number-type discards back
+        const numDiscards = this.discardPile.filter(c => c.type === CardType.Number);
+        if (numDiscards.length === 0) return null;
+        this.discardPile = this.discardPile.filter(c => c.type !== CardType.Number);
+        this.numberPile = numDiscards;
+        this._shuffle(this.numberPile);
+        this.broadcast('deckReshuffled', { pile: 'numbers', count: this.numberPile.length }, this.room.code);
+      }
+      return this.numberPile.pop() || null;
+    } else {
+      // 'operators' (includes operators + specials)
+      if (this.operatorPile.length === 0) {
+        const opDiscards = this.discardPile.filter(c => c.type !== CardType.Number);
+        if (opDiscards.length === 0) return null;
+        this.discardPile = this.discardPile.filter(c => c.type === CardType.Number);
+        this.operatorPile = opDiscards;
+        this._shuffle(this.operatorPile);
+        this.broadcast('deckReshuffled', { pile: 'operators', count: this.operatorPile.length }, this.room.code);
+      }
+      return this.operatorPile.pop() || null;
+    }
+  }
+
   _randomTarget() {
     const min = this.rules.targetMin;
     const max = this.rules.targetMax;
@@ -666,7 +720,8 @@ class GameEngine {
   _exprToString(cards) {
     return cards.map(c => {
       if (c.type === CardType.Number) return String(c.value);
-      const syms = { add:'+', sub:'−', mul:'×', div:'÷', mod:'%', pow:'^' };
+      if (c.type === CardType.Paren) return c.parenKind === 'close' ? ')' : '(';
+      const syms = { add:'+', sub:'−', mul:'×', div:'÷', mod:'%', pow:'^', concat:'‖' };
       return syms[c.operatorKind] || '?';
     }).join(' ');
   }
@@ -692,7 +747,12 @@ class GameEngine {
       activePlayer: this.activePlayer,
       turnNumber: this.turnNumber,
       timeLeft: this.turnTimer,
-      deckCount: this.deck.length,
+      deckCount: this.rules.splitDeck
+        ? this.numberPile.length + this.operatorPile.length
+        : this.deck.length,
+      numberPileCount: this.numberPile.length,
+      operatorPileCount: this.operatorPile.length,
+      splitDeck: !!this.rules.splitDeck,
       discardCount: this.discardPile.length,
       gameOver: this.gameOver,
       winner: this.winner,
@@ -714,6 +774,8 @@ class GameEngine {
         minDrawPerClick: this.rules.minDrawPerClick,
         allowNegative: this.rules.allowNegative,
         operatorPrecedence: this.rules.operatorPrecedence,
+        splitDeck: !!this.rules.splitDeck,
+        maxCardValue: this.rules.maxCardValue ?? 9,
       },
     };
   }
@@ -739,6 +801,8 @@ class GameEngine {
   rematch() {
     this.destroy();
     this.deck = [];
+    this.numberPile = [];
+    this.operatorPile = [];
     this.discardPile = [];
     this.hands = { 1: [], 2: [] };
     this.playfields = { 1: [], 2: [] };

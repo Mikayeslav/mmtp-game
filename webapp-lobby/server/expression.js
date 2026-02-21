@@ -16,7 +16,7 @@
 })(typeof self !== 'undefined' ? self : this, function () {
 
 const CardType = { Number: 'number', Operator: 'operator', Special: 'special', Paren: 'paren' };
-const OperatorKind = { Add: 'add', Sub: 'sub', Mul: 'mul', Div: 'div', Mod: 'mod', Pow: 'pow' };
+const OperatorKind = { Add: 'add', Sub: 'sub', Mul: 'mul', Div: 'div', Mod: 'mod', Pow: 'pow', Concat: 'concat' };
 const SpecialKind = { Wild: 'wild', Reroll: 'reroll', Double: 'double', Peek: 'peek', Swap: 'swap', Paren: 'paren' };
 const ParenKind = { Open: 'open', Close: 'close' };
 
@@ -163,6 +163,15 @@ function evaluateLeftToRight(tokens, opts = {}) {
         if (!isFinite(acc)) return { ok: false, value: 0, reason: 'Result too large' };
         acc = Math.round(acc);
         break;
+      case OperatorKind.Concat: {
+        // Concatenate digits: 3 || 7 = 37, 12 || 5 = 125
+        const left = Math.abs(Math.trunc(acc));
+        const right = Math.abs(Math.trunc(num.value));
+        const sign = acc < 0 ? -1 : 1;
+        acc = sign * Number(String(left) + String(right));
+        if (!isFinite(acc) || acc > 1e15) return { ok: false, value: 0, reason: 'Concatenation result too large' };
+        break;
+      }
     }
   }
   if (!opts.allowNegative && acc < 0) {
@@ -223,9 +232,30 @@ function evaluateStandard(tokens, opts = {}) {
     return { ok: false, value: 0, reason: 'Expression ends with operator' };
   }
 
-  // Pass 1: resolve ^ (power) — highest precedence
+  // Pass 0: resolve || (concat) — highest precedence (digit joining)
   let curNums = [...nums];
   let curOps = [...ops];
+  {
+    const cNums = [curNums[0]];
+    const cOps = [];
+    for (let i = 0; i < curOps.length; i++) {
+      if (curOps[i] === OperatorKind.Concat) {
+        const left = Math.abs(Math.trunc(cNums[cNums.length - 1]));
+        const right = Math.abs(Math.trunc(curNums[i + 1]));
+        const sign = cNums[cNums.length - 1] < 0 ? -1 : 1;
+        const cat = sign * Number(String(left) + String(right));
+        if (!isFinite(cat) || cat > 1e15) return { ok: false, value: 0, reason: 'Concatenation result too large' };
+        cNums[cNums.length - 1] = cat;
+      } else {
+        cNums.push(curNums[i + 1]);
+        cOps.push(curOps[i]);
+      }
+    }
+    curNums = cNums;
+    curOps = cOps;
+  }
+
+  // Pass 1: resolve ^ (power)
   let nextNums = [curNums[0]];
   let nextOps = [];
   for (let i = 0; i < curOps.length; i++) {

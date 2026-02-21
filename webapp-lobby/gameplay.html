@@ -111,13 +111,27 @@
     </div>
 
     <!-- Deck (Right Side) -->
-    <div class="deck-container">
+    <div class="deck-container" id="deck-container">
+      <!-- Single deck (default) -->
       <button id="btn-draw" class="deck-button" type="button" aria-label="Draw card">
         <div class="deck-icon">🃏</div>
         <div class="deck-label">Deck</div>
         <div id="deck-count" class="deck-count">∞</div>
         <div id="deck-loading" class="deck-loading hidden">Holding...</div>
       </button>
+      <!-- Split deck (shown when splitDeck rule is on) -->
+      <div id="split-deck-buttons" class="split-deck-buttons hidden">
+        <button id="btn-draw-numbers" class="deck-button deck-button-split" type="button" aria-label="Draw number card">
+          <div class="deck-icon">🔢</div>
+          <div class="deck-label">Numbers</div>
+          <div id="number-pile-count" class="deck-count">0</div>
+        </button>
+        <button id="btn-draw-operators" class="deck-button deck-button-split" type="button" aria-label="Draw operator card">
+          <div class="deck-icon">➕</div>
+          <div class="deck-label">Op/Spec</div>
+          <div id="operator-pile-count" class="deck-count">0</div>
+        </button>
+      </div>
     </div>
 
     <!-- Floating Turn Timer (Left Side) - Clickable -->
@@ -233,14 +247,15 @@
               <li>Then: Operator + Number, repeat</li>
               <li>Example: <code>1 + 2 × 3</code> = <code>9</code> (left-to-right)</li>
               <li>Basic operators: <code>+</code> <code>−</code> <code>×</code> <code>÷</code></li>
-              <li>Advanced operators (if enabled): <code>%</code> (modulo) <code>^</code> (power)</li>
-              <li>Evaluation is left-to-right (no operator precedence)</li>
+              <li>Advanced operators (if enabled): <code>%</code> (modulo) <code>^</code> (power) <code>‖</code> (concat)</li>
+              <li><code>‖</code> Concat joins digits: <code>3 ‖ 7 = 37</code> — great for reaching large targets!</li>
+              <li>Evaluation is left-to-right (or PEMDAS if host configures it)</li>
             </ul>
           </div>
           <div class="help-section">
             <h3>Special Cards</h3>
             <ul>
-              <li><strong>★ Wild:</strong> Becomes any number you choose (0–9)</li>
+              <li><strong>★ Wild:</strong> Becomes any number you choose (0–9, or up to max card value)</li>
               <li><strong>🎯 Reroll:</strong> Changes the target number to a new random value</li>
               <li><strong>×2 Double:</strong> Doubles your score for the next expression you score</li>
               <li><strong>👁 Peek:</strong> Reveals the top 3 cards of the deck</li>
@@ -254,6 +269,9 @@
               <li>Use mass selection to quickly place multiple cards</li>
               <li>Rehand is useful when you have a bad hand, but it ends your turn immediately</li>
               <li>Host can customize which operators and special cards are in the deck</li>
+              <li><strong>Split Deck:</strong> When enabled, you choose to draw from the Number pile or Operator/Special pile</li>
+              <li><strong>Max Card Value:</strong> Higher values (up to 99) make large targets easier to reach</li>
+              <li><strong>Concat (‖):</strong> The most powerful operator for large numbers — joins digits together</li>
             </ul>
           </div>
           <div class="help-section">
