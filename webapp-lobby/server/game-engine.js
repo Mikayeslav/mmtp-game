@@ -135,14 +135,15 @@ class GameEngine {
     }
 
     const hand = this.hands[pid];
-    if (hand.length >= this.rules.handLimit) {
+    const hLimit = this.rules.handLimit;
+    if (hLimit > 0 && hand.length >= hLimit) {
       return { ok: false, error: 'Hand is full' };
     }
 
-    const count = this.rules.minDrawPerClick || 1;
+    const count = this.rules.minDrawPerClick ?? 1;
     const drawn = [];
     for (let i = 0; i < count; i++) {
-      if (hand.length >= this.rules.handLimit) break;
+      if (hLimit > 0 && hand.length >= hLimit) break;
       const card = this.rules.splitDeck
         ? this._drawFromPile(pileChoice)
         : this._drawFromDeck();
@@ -770,12 +771,18 @@ class GameEngine {
         targetMax: this.rules.targetMax,
         nearestScore: this.rules.nearestScore,
         nearestThreshold: this.rules.nearestThreshold ?? 2,
+        rehandDrawCount: this.rules.rehandDrawCount ?? 5,
         maxDrawPerTurn: this.rules.maxDrawPerTurn,
         minDrawPerClick: this.rules.minDrawPerClick,
         allowNegative: this.rules.allowNegative,
         operatorPrecedence: this.rules.operatorPrecedence,
         splitDeck: !!this.rules.splitDeck,
         maxCardValue: this.rules.maxCardValue ?? 9,
+        deckNumberPct: this.rules.deckNumberPct ?? 63,
+        deckOperatorPct: this.rules.deckOperatorPct ?? 30,
+        deckSpecialPct: this.rules.deckSpecialPct ?? 7,
+        allowedOperators: this.rules.allowedOperators,
+        allowedSpecials: this.rules.allowedSpecials,
       },
     };
   }

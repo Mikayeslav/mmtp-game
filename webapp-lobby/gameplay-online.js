@@ -228,7 +228,7 @@
       const r = serverState.rules;
       if (r.handLimit !== undefined) gameRules.handLimit = r.handLimit;
       if (r.handSize !== undefined) gameRules.handSize = r.handSize;
-      if (r.turnTimerSec !== undefined) gameRules.timer = r.turnTimerSec;
+      if (r.turnTimerSec !== undefined) gameRules.turnTimerSec = r.turnTimerSec;
       if (r.winPoints !== undefined) gameRules.winPoints = r.winPoints;
       if (r.targetMin !== undefined) gameRules.targetMin = r.targetMin;
       if (r.targetMax !== undefined) gameRules.targetMax = r.targetMax;
@@ -240,6 +240,12 @@
       if (r.operatorPrecedence !== undefined) gameRules.operatorPrecedence = r.operatorPrecedence;
       if (r.splitDeck !== undefined) gameRules.splitDeck = r.splitDeck;
       if (r.maxCardValue !== undefined) gameRules.maxCardValue = r.maxCardValue;
+      if (r.rehandDrawCount !== undefined) gameRules.rehandDrawCount = r.rehandDrawCount;
+      if (r.deckNumberPct !== undefined) gameRules.deckNumberPct = r.deckNumberPct;
+      if (r.deckOperatorPct !== undefined) gameRules.deckOperatorPct = r.deckOperatorPct;
+      if (r.deckSpecialPct !== undefined) gameRules.deckSpecialPct = r.deckSpecialPct;
+      if (r.allowedOperators) gameRules.allowedOperators = r.allowedOperators;
+      if (r.allowedSpecials) gameRules.allowedSpecials = r.allowedSpecials;
     }
 
     // ── Player avatars/titles ──

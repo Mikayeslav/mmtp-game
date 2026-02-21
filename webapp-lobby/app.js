@@ -51,6 +51,7 @@
   const DEFAULTS = {
     handSize: 7, timer: 20, targetMin: 1, targetMax: 10, winPoints: 5,
     handLimit: 12, allowNegative: false, nearestScore: false, nearestThreshold: 2,
+    rehandDrawCount: 5, minDrawPerClick: 1, maxDrawPerTurn: 0,
     operatorPrecedence: 'left-to-right',
     deckNumberPct: 63, deckOperatorPct: 30, deckSpecialPct: 7,
     splitDeck: false, maxCardValue: 9,
@@ -1219,13 +1220,17 @@
         }
       }
       
-      // Restore saved rules if returning from gameplay
+      // Always restore saved rules (they persist across page reloads)
       const savedRules = localStorage.getItem(STORAGE_LAST_RULES);
-      if (savedRules && state.isHost) {
-        const parsed = JSON.parse(savedRules);
-        state.rules = { ...DEFAULTS, ...parsed };
-        applyRulesToInputs();
+      if (savedRules) {
+        try {
+          const parsed = JSON.parse(savedRules);
+          state.rules = clampRules({ ...DEFAULTS, ...parsed });
+        } catch (e2) {
+          console.warn('Failed to parse saved rules:', e2);
+        }
       }
+      applyRulesToInputs();
     } catch (e) {
       console.warn('Failed to restore lobby state:', e);
     }
@@ -1264,19 +1269,7 @@
     }
     saveName(name);
     
-    // Restore saved rules if available
-    try {
-      const savedRules = localStorage.getItem(STORAGE_LAST_RULES);
-      if (savedRules) {
-        const parsed = JSON.parse(savedRules);
-        state.rules = { ...DEFAULTS, ...parsed };
-        applyRulesToInputs();
-      }
-    } catch (e) {
-      console.warn('Failed to restore rules on host:', e);
-    }
-    
-    // Read rules from inputs (may have been restored above)
+    // Read rules from inputs (already populated from restored state or user edits)
     readRulesFromInputs();
     state.rules = clampRules(state.rules);
 
@@ -1675,35 +1668,34 @@
   }
 
   function onRulesChange() {
-    if (!state.isHost) return;
     readRulesFromInputs();
     state.rules = clampRules(state.rules);
+    // Always save rules locally so they persist across reloads
+    try {
+      localStorage.setItem(STORAGE_LAST_RULES, JSON.stringify(state.rules));
+    } catch (e) {
+      console.warn('Failed to save rules:', e);
+    }
+    if (!state.isHost) return; // non-host can edit locally but doesn't sync to server
     if (validateRules()) {
       // ── Online: sync rules to server ──
       if (state.isOnlineRoom && window.MMtpNet && MMtpNet.isOnline) {
         MMtpNet.updateRules(state.rules);
       }
       persistRoom();
-      // Save rules to localStorage for restoration
-      try {
-        localStorage.setItem(STORAGE_LAST_RULES, JSON.stringify(state.rules));
-      } catch (e) {
-        console.warn('Failed to save rules:', e);
-      }
     }
   }
 
   function onResetRules() {
-    if (!state.isHost) return;
     state.rules = { ...DEFAULTS };
     applyRulesToInputs();
-    persistRoom();
-    // Save reset rules to localStorage
+    // Always save reset rules to localStorage
     try {
       localStorage.setItem(STORAGE_LAST_RULES, JSON.stringify(state.rules));
     } catch (e) {
       console.warn('Failed to save rules:', e);
     }
+    if (state.isHost) persistRoom();
     setStatus('Rules reset to defaults', 'info');
   }
 

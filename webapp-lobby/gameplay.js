@@ -95,6 +95,8 @@
     try {
       const parsed = JSON.parse(decodeURIComponent(rulesFromUrl));
       gameRules = { ...gameRules, ...parsed };
+      // Map lobby field name 'timer' → gameplay field name 'turnTimerSec'
+      if (parsed.timer !== undefined) gameRules.turnTimerSec = Number(parsed.timer) || 20;
     } catch (e) {
       console.error('Failed to parse rules from URL:', e);
     }
