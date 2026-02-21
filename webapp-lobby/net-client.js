@@ -259,11 +259,12 @@
    */
   function leaveRoom() {
     return new Promise((resolve) => {
-      if (!socket || !connected) return resolve({ ok: false, error: 'Not connected' });
+      // Always clear session tokens — even if disconnected, so lobby doesn't auto-rejoin
       sessionStorage.removeItem(SESSION_TOKEN_KEY);
       sessionStorage.removeItem(ROOM_CODE_KEY);
       sessionToken = null;
       currentRoomCode = null;
+      if (!socket || !connected) return resolve({ ok: false, error: 'Not connected' });
       socket.emit('leaveRoom', {}, (res) => resolve(res));
     });
   }

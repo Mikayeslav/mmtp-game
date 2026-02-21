@@ -508,12 +508,13 @@
   }
 
   // ── Back to Lobby (online aware) ──
+  // Use capture phase so this fires BEFORE the gameplay.js handler
   if (btnBackToLobby) {
     btnBackToLobby.addEventListener('click', () => {
       if (GP.onlineGame && window.MMtpNet) {
-        MMtpNet.leaveRoom();
+        MMtpNet.leaveRoom(); // sessionStorage cleared synchronously inside
       }
-    });
+    }, true); // capture = true → fires first
   }
 
   // ── Rematch (online aware) ──

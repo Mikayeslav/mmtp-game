@@ -990,6 +990,20 @@
     // Hand fullness indicator (header level)
     const limit = gameRules.handLimit > 0 ? gameRules.handLimit : gameRules.handSize;
     if (handCountP1) handCountP1.textContent = `${gameState.players[0].hand.length}/${limit}`;
+
+    // Update hand labels with avatar + name
+    const label1 = handP1El && handP1El.querySelector('.hand-label');
+    const label2 = handP2El && handP2El.querySelector('.hand-label');
+    if (label1) {
+      const av = gameState.players[0].avatar || '';
+      const nm = gameState.players[0].name || 'Player 1';
+      label1.textContent = av ? `${av} ${nm}` : nm;
+    }
+    if (label2) {
+      const av = gameState.players[1].avatar || '';
+      const nm = gameState.players[1].name || 'Player 2';
+      label2.textContent = av ? `${av} ${nm}` : nm;
+    }
     
     gameState.players[0].hand.forEach((card, idx) => {
       cardsP1.appendChild(renderCard(card, 1, idx));
@@ -2801,7 +2815,13 @@
       const total = onlineGame
         ? gameState.deck.length
         : gameState.deck.length + gameState.discardPile.length;
-      deckCount.textContent = total > 0 ? total : '0';
+      let label = total > 0 ? String(total) : '0';
+      // Show draws left this turn if maxDrawPerTurn is active
+      if (gameRules.maxDrawPerTurn > 0) {
+        const left = Math.max(0, gameRules.maxDrawPerTurn - gameState.drawsThisTurn);
+        label += ` (${left}↑)`;
+      }
+      deckCount.textContent = label;
     }
     // Update discard pile visualization
     renderDiscardPile();
@@ -3308,6 +3328,14 @@
 
   if (btnBackToLobby) {
     btnBackToLobby.addEventListener('click', () => {
+      // Clean up localStorage room data so lobby doesn't show stale room
+      try {
+        const allKeys = Object.keys(localStorage);
+        allKeys.forEach(k => {
+          if (k.startsWith(ROOM_KEY)) localStorage.removeItem(k);
+        });
+        localStorage.removeItem('mmtp-game-state');
+      } catch (e) { /* ignore */ }
       window.location.href = '/';
     });
   }

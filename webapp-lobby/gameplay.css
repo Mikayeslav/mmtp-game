@@ -1161,11 +1161,11 @@ body {
   box-shadow: none !important;
 }
 
-/* Help trigger button (bottom-left corner) */
+/* Help trigger button (bottom-right corner) */
 .btn-help-trigger {
   position: fixed;
   bottom: 20px;
-  left: 20px;
+  right: 20px;
   width: 36px;
   height: 36px;
   background: rgba(0,0,0,0.55);
@@ -3036,6 +3036,10 @@ body {
   }
 
   .score-zone {
-    display: none; /* Hide score piles on very tiny screens to save space */
+    width: 100%;
+    min-height: 24px;
+    padding: 2px;
+    flex-direction: row;
+    overflow-x: auto;
   }
 }
