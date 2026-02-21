@@ -123,7 +123,8 @@ app.use(express.json()); // Parse JSON request bodies
 // Create a new profile (returns code + pin)
 app.post('/api/profile/create', (req, res) => {
   try {
-    const result = profiles.create(req.body);
+    const { pin: chosenPin, ...profileData } = req.body;
+    const result = profiles.create(profileData, chosenPin);
     res.json({ ok: true, code: result.code, pin: result.pin });
   } catch (e) {
     res.json({ ok: false, error: e.message });

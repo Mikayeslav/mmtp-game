@@ -73,9 +73,10 @@ function generatePin() {
  * @param {object} data - { name, avatar, title, bio, stats, matchHistory, settings }
  * @returns {{ code: string }}
  */
-function create(data) {
+function create(data, chosenPin) {
   const code = generateCode();
-  const pin = generatePin();
+  // Use player-chosen PIN if valid, otherwise auto-generate
+  const pin = (chosenPin && /^\d{4}$/.test(chosenPin)) ? chosenPin : generatePin();
   db[code] = {
     ...MMProfile.sanitize(data || {}),
     pin,

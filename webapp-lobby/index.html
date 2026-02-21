@@ -662,12 +662,16 @@
         <button id="btn-welcome-skip" class="btn btn-small btn-ghost">Play as Guest</button>
       </div>
 
-      <!-- Step 2a: New Player — enter name -->
+      <!-- Step 2a: New Player — enter name + choose PIN -->
       <div id="welcome-step-new" class="welcome-step hidden">
         <h2>Create Account</h2>
         <div class="welcome-field">
           <label for="welcome-name-input">Choose a display name</label>
           <input type="text" id="welcome-name-input" class="welcome-input" maxlength="24" placeholder="Your name..." autocomplete="off">
+        </div>
+        <div class="welcome-field">
+          <label for="welcome-new-pin-input">Choose a 4-digit PIN (for login on other devices)</label>
+          <input type="text" id="welcome-new-pin-input" class="welcome-input mono" maxlength="4" placeholder="1234" autocomplete="off" inputmode="numeric">
         </div>
         <div class="welcome-buttons">
           <button id="btn-welcome-create" class="btn btn-primary">Create</button>

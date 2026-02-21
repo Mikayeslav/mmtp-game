@@ -378,6 +378,18 @@ body {
   background: #ff0000;
 }
 
+/* On touch devices, always show discard button clearly */
+@media (hover: none) and (pointer: coarse) {
+  .card .discard-btn {
+    opacity: 1;
+    width: 24px;
+    height: 24px;
+    font-size: 14px;
+    top: -6px;
+    right: -6px;
+  }
+}
+
 /* Drag-to-select box */
 .drag-select-box {
   position: fixed;
@@ -2191,13 +2203,24 @@ body {
   }
 
   .hand-cards {
-    gap: 4px;
+    gap: 5px;
   }
 
   .card {
-    width: 42px;
-    height: 60px;
-    font-size: 14px;
+    width: 48px;
+    height: 68px;
+    font-size: 15px;
+    /* Bigger touch target */
+    touch-action: manipulation;
+  }
+
+  /* Larger discard button on tablets */
+  .card .discard-btn {
+    width: 22px;
+    height: 22px;
+    font-size: 12px;
+    top: -4px;
+    right: -4px;
   }
 
   .score-zone {
@@ -2211,8 +2234,8 @@ body {
   }
 
   .playfield-card {
-    width: 40px;
-    height: 55px;
+    width: 42px;
+    height: 58px;
     font-size: 16px;
   }
 
@@ -2681,7 +2704,7 @@ body {
 
   /* ── Hands ── */
   .hand {
-    padding: 4px 6px;
+    padding: 6px 8px;
     border-radius: 6px;
   }
 
@@ -2690,36 +2713,51 @@ body {
   }
 
   .hand-label {
-    font-size: 9px;
+    font-size: 10px;
   }
 
   .hand-body {
     flex-direction: column;
-    gap: 4px;
+    gap: 6px;
   }
 
   .hand-cards {
-    gap: 3px;
-    min-height: 56px;
+    gap: 4px;
+    min-height: 60px;
+    /* Allow horizontal scroll if cards overflow instead of crushing them */
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    overflow-y: hidden;
+    -webkit-overflow-scrolling: touch;
+    scroll-snap-type: x proximity;
+    padding-bottom: 4px;
   }
 
   /* ── Cards ── */
   .card {
-    width: 34px;
-    height: 50px;
-    font-size: 12px;
-    border-radius: 4px;
+    width: 42px;
+    height: 60px;
+    font-size: 13px;
+    border-radius: 5px;
     border-width: 1.5px;
+    flex-shrink: 0; /* Don't crush cards */
+    touch-action: manipulation;
+    scroll-snap-align: start;
   }
 
   .card:hover:not(.disabled) {
     transform: translateY(-2px);
   }
 
+  /* Touch-friendly discard button */
   .card .discard-btn {
-    width: 16px;
-    height: 16px;
-    font-size: 10px;
+    width: 20px;
+    height: 20px;
+    font-size: 12px;
+    top: -6px;
+    right: -6px;
+    /* Always visible on mobile (no hover) */
+    opacity: 0.85;
   }
 
   /* ── Score Zone ── */
@@ -2984,14 +3022,24 @@ body {
    ══════════════════════════════════════════ */
 @media (max-width: 360px) {
   .card {
-    width: 28px;
-    height: 42px;
-    font-size: 10px;
+    width: 36px;
+    height: 52px;
+    font-size: 11px;
+    flex-shrink: 0;
+  }
+
+  .card .discard-btn {
+    width: 18px;
+    height: 18px;
+    font-size: 11px;
+    top: -5px;
+    right: -5px;
+    opacity: 0.85;
   }
 
   .playfield-card {
-    width: 26px;
-    height: 38px;
+    width: 28px;
+    height: 40px;
     font-size: 10px;
   }
 
@@ -3000,12 +3048,12 @@ body {
   }
 
   .deck-button {
-    width: 34px;
-    height: 48px;
+    width: 38px;
+    height: 54px;
   }
 
   .deck-icon {
-    font-size: 14px;
+    font-size: 16px;
   }
 
   .timer-floating-value {

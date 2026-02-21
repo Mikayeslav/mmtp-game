@@ -1998,10 +1998,13 @@
       
       updateScores();
       
-      // Show XP notification
-      const xpAmount = isExact ? 25 : (diff === 1 ? 15 : 10);
-      const xpLabel = isExact ? 'Score!' : `Near! (±${diff})`;
-      showXPNotification(xpAmount, xpLabel, 'score');
+      // Show XP notification only for the local player's score (not opponent)
+      const isLocalPlayer = onlineGame ? (gameState.activePlayer === myPlayerId) : (gameState.activePlayer === 1);
+      if (isLocalPlayer) {
+        const xpAmount = isExact ? 25 : (diff === 1 ? 15 : 10);
+        const xpLabel = isExact ? 'Score!' : `Near! (±${diff})`;
+        showXPNotification(xpAmount, xpLabel, 'score');
+      }
       
       // Check win
       if (player.score >= gameRules.winPoints) {

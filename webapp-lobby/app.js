@@ -2576,11 +2576,23 @@
     if (window.SFX) SFX.play('score');
   });
 
+  // PIN input for new accounts
+  const welcomeNewPinInput = $('welcome-new-pin-input');
+  if (welcomeNewPinInput) welcomeNewPinInput.addEventListener('input', () => {
+    welcomeNewPinInput.value = welcomeNewPinInput.value.replace(/\D/g, '');
+  });
+
   // Create new account
   if (btnWelcomeCreate) btnWelcomeCreate.addEventListener('click', async () => {
     const name = (welcomeNameInput && welcomeNameInput.value.trim()) || '';
     if (!name || name.length < 1) {
       showWelcomeStatus(createStatus, 'Please enter a name', 'error');
+      return;
+    }
+    const chosenPin = (welcomeNewPinInput && welcomeNewPinInput.value || '').trim();
+    if (!chosenPin || chosenPin.length !== 4 || !/^\d{4}$/.test(chosenPin)) {
+      showWelcomeStatus(createStatus, 'Choose a 4-digit PIN (numbers only)', 'error');
+      if (welcomeNewPinInput) welcomeNewPinInput.focus();
       return;
     }
     btnWelcomeCreate.disabled = true;
@@ -2589,7 +2601,7 @@
       const res = await fetch('/api/profile/create', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name, avatar: '🃏' }),
+        body: JSON.stringify({ name, avatar: '🃏', pin: chosenPin }),
       });
       const result = await res.json();
       if (result.ok && result.code) {
