@@ -97,6 +97,18 @@
   };
 
   const $ = (id) => document.getElementById(id);
+
+  // ── Early App namespace init (needed before renderLobby can be called) ──
+  // Full property assignments happen at the bottom of this IIFE.
+  const App = {};
+  window.App = App;
+  // Stubs for functions provided by external modules (app-online.js, app-cheat.js)
+  App.getInviteUrl = null;
+  App.updateInviteLinkPreview = null;
+  App.fetchServerInfo = null;
+  App.handleAutoJoin = null;
+  App.initOnline = null;
+
   function timeAgo(ts) {
     const sec = Math.floor((Date.now() - ts) / 1000);
     if (sec < 60) return 'just now';
@@ -2710,8 +2722,6 @@
   // ══════════════════════════════════════════════════════════════
   // ── Expose App namespace for modular scripts ──
   // ══════════════════════════════════════════════════════════════
-  const App = {};
-  window.App = App;
 
   // State & constants
   App.state = state;
