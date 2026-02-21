@@ -723,6 +723,15 @@
       toast('Not your turn', 'warning');
       return;
     }
+
+    // ── Online: send to server ──
+    if (onlineGame) {
+      netAction('draw').then(res => {
+        if (!res.ok) toast(res.error || 'Cannot draw', 'warning');
+      });
+      return;
+    }
+
     const playerId = gameState.activePlayer;
     const targetHand = playerId === 1 ? cardsP1 : cardsP2;
     if (!targetHand) return;
@@ -1438,10 +1447,9 @@
       hand.splice(index, 1);
       pf.push(resolvedCard);
       gameState.matchStats.players[playerId - 1].cardsPlayed++;
-      renderHand(playerId);
+      renderHands();
       renderPlayfield();
-      renderDeck();
-      updateExpressionPreview();
+      updateDeckCount();
       if (window.SFX) SFX.play('cardPlace');
       writeGameState();
     } else {
@@ -1489,8 +1497,8 @@
         // Re-add card to hand since we already removed it
         hand.push(card);
         gameState.discardPile.pop();
-        renderHand(playerId);
-        renderDeck();
+        renderHands();
+        updateDeckCount();
         return;
       }
       const myCard = mySwappable[Math.floor(Math.random() * mySwappable.length)];
@@ -1504,11 +1512,10 @@
       const gotLabel = oppCard.type === CardType.Number ? oppCard.value : opSym(oppCard.operatorKind);
       toast(`🔄 Swapped ${gaveLabel} ↔ ${gotLabel}`, 'success');
       if (window.SFX) SFX.play('cardDraw');
-      renderHand(oppId); // Refresh opponent's rendered hand too
     }
 
-    renderHand(playerId);
-    renderDeck();
+    renderHands();
+    updateDeckCount();
     writeGameState();
   }
 
@@ -1868,6 +1875,23 @@
   // valueMatchesTarget and runBotTurn are now in gameplay-bot.js
 
 
+  // ── Expression-to-text helper (handles both string and card-array formats) ──
+  // Online mode: server sends `exprString` (a string like "3 + 5")
+  // Local/bot mode: expressions are arrays of card objects with .type, .value, .operatorKind
+  function exprToText(expr) {
+    if (!expr) return '';
+    if (typeof expr === 'string') return expr;
+    if (!Array.isArray(expr)) return String(expr);
+    const opSyms = { add:'+', sub:'−', mul:'×', div:'÷', mod:'%', pow:'^' };
+    return expr.map(c => {
+      if (c.type === CardType.Number) return c.value;
+      if (c.type === CardType.Paren) return c.parenKind === ParenKind.Open ? '(' : ')';
+      if (c.type === CardType.Operator) return opSyms[c.operatorKind] || '?';
+      if (c.type === CardType.Special) return '★';
+      return '?';
+    }).join(' ');
+  }
+
   // ── Expression evaluation — delegates to shared expression module ──
   function evaluateExpression() {
     if (gameState.playfield.length === 0) {
@@ -2150,12 +2174,15 @@
     }
   }
 
+  let _endGameCalled = false; // Guard against double endGame() calls (online: gameOver + applyServerState)
   function endGame(winnerId) {
+    if (_endGameCalled) return; // Already processed
+    _endGameCalled = true;
     if (GP.bot && GP.bot.watchdogTimer) { clearTimeout(GP.bot.watchdogTimer); GP.bot.watchdogTimer = null; }
     if (GP.bot) GP.bot.turnStartTime = 0;
     gameState.gameOver = true;
     gameState.winner = winnerId;
-    gameState.matchStats.endTime = Date.now();
+    if (!gameState.matchStats.endTime) gameState.matchStats.endTime = Date.now();
     
     if (gameState.timerInterval) {
       clearInterval(gameState.timerInterval);
@@ -2433,13 +2460,7 @@
     }
     if ($('stat-p1-best')) {
       if (p1Stats.bestExpression) {
-        const expr = p1Stats.bestExpression.expression.map(c => 
-          c.type === CardType.Number ? c.value : 
-          (c.operatorKind === OperatorKind.Add ? '+' :
-           c.operatorKind === OperatorKind.Sub ? '−' :
-           c.operatorKind === OperatorKind.Mul ? '×' : '÷')
-        ).join(' ');
-        $('stat-p1-best').textContent = `${expr} = ${p1Stats.bestExpression.value}`;
+        $('stat-p1-best').textContent = `${exprToText(p1Stats.bestExpression.expression)} = ${p1Stats.bestExpression.value}`;
       } else {
         $('stat-p1-best').textContent = '—';
       }
@@ -2459,13 +2480,7 @@
     }
     if ($('stat-p2-best')) {
       if (p2Stats.bestExpression) {
-        const expr = p2Stats.bestExpression.expression.map(c => 
-          c.type === CardType.Number ? c.value : 
-          (c.operatorKind === OperatorKind.Add ? '+' :
-           c.operatorKind === OperatorKind.Sub ? '−' :
-           c.operatorKind === OperatorKind.Mul ? '×' : '÷')
-        ).join(' ');
-        $('stat-p2-best').textContent = `${expr} = ${p2Stats.bestExpression.value}`;
+        $('stat-p2-best').textContent = `${exprToText(p2Stats.bestExpression.expression)} = ${p2Stats.bestExpression.value}`;
       } else {
         $('stat-p2-best').textContent = '—';
       }
@@ -2482,18 +2497,13 @@
       allExpressions.forEach(expr => {
         const entry = document.createElement('div');
         entry.className = 'expression-entry';
-        const exprText = expr.expression.map(c => 
-          c.type === CardType.Number ? c.value : 
-          (c.operatorKind === OperatorKind.Add ? '+' :
-           c.operatorKind === OperatorKind.Sub ? '−' :
-           c.operatorKind === OperatorKind.Mul ? '×' : '÷')
-        ).join(' ');
+        const exprText = exprToText(expr.expression);
         entry.innerHTML = `
           <div class="expression-entry-header">
-            <span class="expression-entry-text">${exprText} = ${expr.value}</span>
+            <span class="expression-entry-text">${exprText}${expr.value != null ? ' = ' + expr.value : ''}</span>
             <span class="expression-entry-details">Target: ${expr.target}</span>
           </div>
-          <div class="expression-entry-details">Turn ${expr.turn} · ${Math.floor(expr.timeRemaining)}s remaining</div>
+          ${expr.turn != null ? `<div class="expression-entry-details">Turn ${expr.turn}${expr.timeRemaining != null ? ' · ' + Math.floor(expr.timeRemaining) + 's remaining' : ''}</div>` : ''}
         `;
         expressionsList.appendChild(entry);
       });
@@ -2714,12 +2724,25 @@
         exprCard.style.setProperty('--card-rotate', `${rotate1}deg`);
         exprCard.style.transform = `translate(${(Math.random() * 6 - 3).toFixed(1)}px, ${(Math.random() * 6 - 3).toFixed(1)}px) rotate(${rotate1}deg)`;
         exprCard.style.zIndex = '1';
-        const exprText = (pileEntry.expression || []).map((c) =>
-          c.type === CardType.Number ? c.value :
-            (c.operatorKind === OperatorKind.Add ? '+' :
-             c.operatorKind === OperatorKind.Sub ? '−' :
-             c.operatorKind === OperatorKind.Mul ? '×' : '÷')
-        ).join(' ');
+        let exprText;
+        if (typeof pileEntry.expression === 'string') {
+          // Online mode: server sends exprString directly
+          exprText = pileEntry.expression;
+        } else if (Array.isArray(pileEntry.expression)) {
+          // Local/bot mode: expression is an array of card objects
+          exprText = pileEntry.expression.map((c) =>
+            c.type === CardType.Number ? c.value :
+            c.type === CardType.Paren ? (c.parenKind === ParenKind.Open ? '(' : ')') :
+              (c.operatorKind === OperatorKind.Add ? '+' :
+               c.operatorKind === OperatorKind.Sub ? '−' :
+               c.operatorKind === OperatorKind.Mul ? '×' :
+               c.operatorKind === OperatorKind.Div ? '÷' :
+               c.operatorKind === OperatorKind.Mod ? '%' :
+               c.operatorKind === OperatorKind.Pow ? '^' : '?')
+          ).join(' ');
+        } else {
+          exprText = '';
+        }
         exprCard.textContent = exprText || 'OK';
         mini.appendChild(exprCard);
 
@@ -2761,7 +2784,10 @@
 
   function updateDeckCount() {
     if (deckCount) {
-      const total = gameState.deck.length + gameState.discardPile.length;
+      // Online mode: deck array is sized to match server's deckCount; discard pile is local-only
+      const total = onlineGame
+        ? gameState.deck.length
+        : gameState.deck.length + gameState.discardPile.length;
       deckCount.textContent = total > 0 ? total : '0';
     }
     // Update discard pile visualization
@@ -3161,6 +3187,7 @@
     if (GP.bot) GP.bot.turnStartTime = 0;
     timerPaused = false;
     timerInfinite = false;
+    _endGameCalled = false; // Allow endGame() to fire again for new game
 
     gameState.players[0].score = 0;
     gameState.players[0].hand = [];

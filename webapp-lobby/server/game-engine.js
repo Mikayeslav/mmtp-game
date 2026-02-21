@@ -39,8 +39,8 @@ class GameEngine {
 
     // Per-player match stats
     this.matchStats = {
-      1: { cardsPlayed: 0, cardsDrawn: 0, cardsDiscarded: 0, expressionsScored: [], rehandsUsed: 0, timeSaved: 0 },
-      2: { cardsPlayed: 0, cardsDrawn: 0, cardsDiscarded: 0, expressionsScored: [], rehandsUsed: 0, timeSaved: 0 },
+      1: { cardsPlayed: 0, cardsDrawn: 0, cardsDiscarded: 0, expressionsScored: [], rehandsUsed: 0, timeSaved: 0, bestExpression: null },
+      2: { cardsPlayed: 0, cardsDrawn: 0, cardsDiscarded: 0, expressionsScored: [], rehandsUsed: 0, timeSaved: 0, bestExpression: null },
     };
 
     // Special card state
@@ -254,9 +254,21 @@ class GameEngine {
     this.matchStats[pid].expressionsScored.push({
       expression: this._exprToString(pf),
       target: this.target,
+      value: result.value,
       length: pf.length,
       near: !isExact,
     });
+    // Note: cardsPlayed is already incremented in _handlePlace() when each card is placed
+
+    // Track best expression per player
+    if (!this.matchStats[pid].bestExpression ||
+        result.value > this.matchStats[pid].bestExpression.value) {
+      this.matchStats[pid].bestExpression = {
+        value: result.value,
+        expression: this._exprToString(pf),
+        target: this.target,
+      };
+    }
 
     // Discard played cards
     pf.forEach(c => this.discardPile.push(c));
@@ -282,7 +294,9 @@ class GameEngine {
       pointsAwarded,
     }, this.room.code);
 
-    this._broadcastState();
+    // Auto-end turn after scoring (mirrors local game behavior)
+    this.matchStats[pid].timeSaved += this.turnTimer;
+    this._nextTurn();
     return { ok: true, scored: true, near: !isExact, pointsAwarded };
   }
 
@@ -671,8 +685,8 @@ class GameEngine {
     this.doubleNext = { 1: false, 2: false };
     this._nextCardId = 1;
     this.matchStats = {
-      1: { cardsPlayed: 0, cardsDrawn: 0, cardsDiscarded: 0, expressionsScored: [], rehandsUsed: 0, timeSaved: 0 },
-      2: { cardsPlayed: 0, cardsDrawn: 0, cardsDiscarded: 0, expressionsScored: [], rehandsUsed: 0, timeSaved: 0 },
+      1: { cardsPlayed: 0, cardsDrawn: 0, cardsDiscarded: 0, expressionsScored: [], rehandsUsed: 0, timeSaved: 0, bestExpression: null },
+      2: { cardsPlayed: 0, cardsDrawn: 0, cardsDiscarded: 0, expressionsScored: [], rehandsUsed: 0, timeSaved: 0, bestExpression: null },
     };
     this.start();
   }

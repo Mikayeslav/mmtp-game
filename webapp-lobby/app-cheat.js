@@ -321,6 +321,9 @@
       const matchHistory = JSON.parse(localStorage.getItem('mmtp-match-history') || '[]');
       return {
         name,
+        avatar: localStorage.getItem(App.STORAGE_AVATAR || 'mmtp-player-avatar') || '🃏',
+        title: localStorage.getItem(App.STORAGE_TITLE || 'mmtp-player-title') || '',
+        bio: localStorage.getItem(App.STORAGE_BIO || 'mmtp-player-bio') || '',
         stats: { ...state.stats },
         matchHistory: matchHistory.slice(-20),
       };
@@ -331,6 +334,18 @@
       if (data.name) {
         saveName(data.name);
         if (playerNameInput) playerNameInput.value = data.name;
+      }
+      // Apply avatar, title, bio
+      if (data.avatar) {
+        localStorage.setItem(App.STORAGE_AVATAR || 'mmtp-player-avatar', data.avatar);
+      }
+      if (data.title) {
+        localStorage.setItem(App.STORAGE_TITLE || 'mmtp-player-title', data.title);
+      }
+      if (typeof data.bio === 'string') {
+        localStorage.setItem(App.STORAGE_BIO || 'mmtp-player-bio', data.bio);
+        const bioInput = document.getElementById('profile-bio-input');
+        if (bioInput) bioInput.value = data.bio;
       }
       if (data.stats) {
         state.stats = {

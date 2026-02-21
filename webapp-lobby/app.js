@@ -109,7 +109,6 @@
   const menuRoot = $('menu-root');
   const playerNameDisplay = $('player-name-display');
   const connectionStatus = $('connection-status');
-  const statLevel = $('stat-level');
   const statXp = $('stat-xp');
   const statWins = $('stat-wins');
   const statLosses = $('stat-losses');
@@ -122,6 +121,25 @@
   const statStatus = $('stat-status');
   const statLast = $('stat-last');
   const playerNameInput = $('player-name-input');
+
+  // Profile card DOM elements
+  const profileAvatar = $('btn-avatar-pick');
+  const profileTitle = $('btn-title-pick');
+  const profileRankBadge = $('profile-rank-badge');
+  const profileBioInput = $('profile-bio-input');
+  const barLabelLevel = $('bar-label-level');
+  const barLabelRank = $('bar-label-rank');
+  const rankFill = $('rank-fill');
+  const avatarPicker = $('avatar-picker');
+  const avatarGrid = $('avatar-grid');
+  const titlePicker = $('title-picker');
+  const titleList = $('title-list');
+
+  // Profile state (avatar, title, bio persisted in localStorage)
+  const STORAGE_AVATAR = 'mmtp-player-avatar';
+  const STORAGE_TITLE = 'mmtp-player-title';
+  const STORAGE_BIO = 'mmtp-player-bio';
+
   const joinRoomCode = $('join-room-code');
   const hostRoomBlock = $('host-room-block');
   const hostRoomCode = $('host-room-code');
@@ -546,25 +564,74 @@
       if (playerNameDisplay) playerNameDisplay.textContent = name || '—';
       const s = state.stats;
       const games = (s.wins || 0) + (s.losses || 0) + (s.draws || 0);
-      const winrate = games ? Math.round((100 * (s.wins || 0)) / games) : null;
-      if (statLevel) statLevel.textContent = String(s.level ?? 1);
-      const xp = s.xp ?? 0;
-      const xpNext = s.xpToNext ?? 100;
-      if (statXp) statXp.textContent = xp + ' / ' + xpNext;
-      if (xpFill) {
-        const pct = xpNext > 0 ? Math.min(100, Math.round((100 * xp) / xpNext)) : 0;
-        xpFill.style.width = pct + '%';
-        const bar = xpFill.parentElement;
-        if (bar) bar.setAttribute('aria-valuenow', xp);
+      const wr = games ? Math.round((100 * (s.wins || 0)) / games) : null;
+
+      // ── Profile card updates (uses MMProfile library) ──
+      if (typeof MMProfile !== 'undefined') {
+        const rating = s.rating ?? 1000;
+        const rank = MMProfile.getRank(rating);
+        const rankProg = MMProfile.getRankProgress(rating);
+        const xp = s.xp ?? 0;
+        const xpNext = s.xpToNext ?? 100;
+        const xpPct = xpNext > 0 ? Math.min(100, Math.round(100 * xp / xpNext)) : 0;
+
+        // Avatar
+        const savedAvatar = localStorage.getItem(STORAGE_AVATAR) || '🃏';
+        if (profileAvatar) profileAvatar.textContent = savedAvatar;
+
+        // Title
+        const savedTitle = localStorage.getItem(STORAGE_TITLE);
+        if (profileTitle) {
+          if (savedTitle) {
+            profileTitle.textContent = savedTitle;
+          } else {
+            const titles = MMProfile.getUnlockedTitles(s);
+            profileTitle.textContent = titles.length > 0 ? titles[titles.length - 1].label : 'Newcomer';
+          }
+        }
+
+        // Rank badge
+        if (profileRankBadge) {
+          const ri = profileRankBadge.querySelector('.rank-icon');
+          const rn = profileRankBadge.querySelector('.rank-name');
+          if (ri) ri.textContent = rank.icon;
+          if (rn) rn.textContent = rank.name;
+          profileRankBadge.style.color = rank.color;
+          profileRankBadge.title = rank.name;
+        }
+
+        // XP bar
+        if (barLabelLevel) barLabelLevel.textContent = 'Lv.' + (s.level ?? 1);
+        if (statXp) statXp.textContent = xp + '/' + xpNext + ' XP';
+        if (xpFill) xpFill.style.width = xpPct + '%';
+
+        // Rank bar
+        if (barLabelRank) barLabelRank.textContent = rank.icon;
+        if (statRating) statRating.textContent = rating + ' SR';
+        if (rankFill) {
+          rankFill.style.width = Math.round(rankProg * 100) + '%';
+          rankFill.style.background = rank.color;
+        }
+      } else {
+        // Fallback: no MMProfile lib
+        const xp = s.xp ?? 0;
+        const xpNext = s.xpToNext ?? 100;
+        if (statXp) statXp.textContent = xp + '/' + xpNext + ' XP';
+        if (xpFill) {
+          const pct = xpNext > 0 ? Math.min(100, Math.round((100 * xp) / xpNext)) : 0;
+          xpFill.style.width = pct + '%';
+        }
+        if (statRating) statRating.textContent = String(s.rating ?? 1000);
       }
+
+      // ── Profile card stat cells ──
       if (statWins) statWins.textContent = String(s.wins ?? 0);
       if (statLosses) statLosses.textContent = String(s.losses ?? 0);
       if (statDraws) statDraws.textContent = String(s.draws ?? 0);
       if (statGames) statGames.textContent = String(games);
-      if (statWinrate) statWinrate.textContent = winrate != null ? winrate + '%' : '—';
+      if (statWinrate) statWinrate.textContent = wr != null ? wr + '%' : '—';
       if (statStreak) statStreak.textContent = String(s.winStreak ?? 0);
       if (statBestStreak) statBestStreak.textContent = String(s.bestWinStreak ?? 0);
-      if (statRating) statRating.textContent = String(s.rating ?? 1000);
       if (statStatus) statStatus.textContent = state.roomCode ? 'In Lobby' : 'Idle';
       
         // Show recent match result and detailed stats if available
@@ -1783,6 +1850,124 @@
     });
   }
 
+  // ══════════════════════════════════════════════════════════════
+  // ── Profile Card — Avatar / Title / Bio pickers ──
+  // ══════════════════════════════════════════════════════════════
+  (function initProfileCard() {
+    if (typeof MMProfile === 'undefined') return;
+
+    // ── Load persisted profile extras ──
+    const savedAvatar = localStorage.getItem(STORAGE_AVATAR) || '🃏';
+    const savedTitle = localStorage.getItem(STORAGE_TITLE) || '';
+    const savedBio = localStorage.getItem(STORAGE_BIO) || '';
+    if (profileAvatar) profileAvatar.textContent = savedAvatar;
+    if (profileBioInput) profileBioInput.value = savedBio;
+
+    // ── Avatar Picker ──
+    function openAvatarPicker() {
+      if (!avatarPicker || !avatarGrid) return;
+      avatarGrid.innerHTML = '';
+      const currentAvatar = localStorage.getItem(STORAGE_AVATAR) || '🃏';
+      const unlocked = MMProfile.getUnlockedAvatars(state.stats);
+      const unlockedIds = new Set(unlocked.map(a => a.id));
+
+      MMProfile.AVATARS.forEach(a => {
+        const isLocked = !unlockedIds.has(a.id);
+        const isSelected = a.emoji === currentAvatar;
+        const el = document.createElement('div');
+        el.className = 'avatar-option' + (isSelected ? ' selected' : '') + (isLocked ? ' locked' : '');
+        let reqText = '';
+        if (a.req) {
+          const val = a.req.value;
+          switch (a.req.type) {
+            case 'wins':   reqText = val + ' wins'; break;
+            case 'level':  reqText = 'Lv.' + val; break;
+            case 'streak': reqText = val + ' streak'; break;
+            case 'rating': reqText = val + ' SR'; break;
+            case 'games':  reqText = val + ' games'; break;
+          }
+        }
+        el.innerHTML = `
+          <span class="avatar-emoji">${a.emoji}</span>
+          <span class="avatar-name">${a.name}</span>
+          ${isLocked ? `<span class="avatar-lock">🔒 ${reqText}</span>` : ''}
+        `;
+        if (!isLocked) {
+          el.addEventListener('click', () => {
+            localStorage.setItem(STORAGE_AVATAR, a.emoji);
+            if (profileAvatar) profileAvatar.textContent = a.emoji;
+            avatarPicker.classList.add('hidden');
+            if (window.SFX) SFX.play('click');
+          });
+        }
+        avatarGrid.appendChild(el);
+      });
+      avatarPicker.classList.remove('hidden');
+    }
+    if (profileAvatar) profileAvatar.addEventListener('click', openAvatarPicker);
+    if ($('btn-avatar-close')) $('btn-avatar-close').addEventListener('click', () => avatarPicker && avatarPicker.classList.add('hidden'));
+    if (avatarPicker) avatarPicker.addEventListener('click', (e) => {
+      if (e.target === avatarPicker) avatarPicker.classList.add('hidden');
+    });
+
+    // ── Title Picker ──
+    function openTitlePicker() {
+      if (!titlePicker || !titleList) return;
+      titleList.innerHTML = '';
+      const currentTitle = localStorage.getItem(STORAGE_TITLE) || '';
+      const unlocked = MMProfile.getUnlockedTitles(state.stats);
+      const unlockedIds = new Set(unlocked.map(t => t.id));
+
+      MMProfile.TITLES.forEach(t => {
+        const isLocked = !unlockedIds.has(t.id);
+        const isSelected = t.label === currentTitle;
+        const el = document.createElement('div');
+        el.className = 'title-option' + (isSelected ? ' selected' : '') + (isLocked ? ' locked' : '');
+        let reqText = '';
+        if (t.req) {
+          const val = t.req.value;
+          switch (t.req.type) {
+            case 'wins':   reqText = val + ' wins'; break;
+            case 'level':  reqText = 'Lv.' + val; break;
+            case 'games':  reqText = val + ' games'; break;
+            case 'streak': reqText = val + ' streak'; break;
+            case 'rating': reqText = val + ' SR'; break;
+          }
+        }
+        el.innerHTML = `
+          <span class="title-label">${t.label}</span>
+          <span class="title-req">${isLocked ? '🔒 ' + reqText : (isSelected ? '✓' : '')}</span>
+        `;
+        if (!isLocked) {
+          el.addEventListener('click', () => {
+            localStorage.setItem(STORAGE_TITLE, t.label);
+            if (profileTitle) profileTitle.textContent = t.label;
+            titlePicker.classList.add('hidden');
+            if (window.SFX) SFX.play('click');
+          });
+        }
+        titleList.appendChild(el);
+      });
+      titlePicker.classList.remove('hidden');
+    }
+    if (profileTitle) profileTitle.addEventListener('click', openTitlePicker);
+    if ($('btn-title-close')) $('btn-title-close').addEventListener('click', () => titlePicker && titlePicker.classList.add('hidden'));
+    if (titlePicker) titlePicker.addEventListener('click', (e) => {
+      if (e.target === titlePicker) titlePicker.classList.add('hidden');
+    });
+
+    // ── Bio Save (on blur) ──
+    if (profileBioInput) {
+      profileBioInput.addEventListener('blur', () => {
+        const bio = profileBioInput.value.trim().slice(0, 80);
+        localStorage.setItem(STORAGE_BIO, bio);
+      });
+      profileBioInput.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') { e.preventDefault(); profileBioInput.blur(); }
+      });
+    }
+  })();
+
   // showGame/onBack removed — game navigates to gameplay.html directly
 
   function toggleHelp() {
@@ -2298,6 +2483,9 @@
   App.STORAGE_STATS = STORAGE_STATS;
   App.STORAGE_PROFILE_CODE = STORAGE_PROFILE_CODE;
   App.STORAGE_LAST_RULES = STORAGE_LAST_RULES;
+  App.STORAGE_AVATAR = STORAGE_AVATAR;
+  App.STORAGE_TITLE = STORAGE_TITLE;
+  App.STORAGE_BIO = STORAGE_BIO;
   App.DEFAULTS = DEFAULTS;
   App.RULES_CLAMP = RULES_CLAMP;
   App.tabId = tabId;

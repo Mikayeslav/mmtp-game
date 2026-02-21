@@ -2,16 +2,18 @@
  * MMtp — Player Profile Storage
  * Simple JSON-file-based profile system.
  * Each profile has a 6-char alphanumeric code that acts as the "account ID".
+ * Uses the shared MMProfile library for schema & sanitisation.
  *
  * Usage:
  *   const profiles = require('./profiles');
- *   profiles.save('ABC123', { name: 'Player', stats: {...}, settings: {...} });
+ *   profiles.save('ABC123', { name: 'Player', avatar: '🦊', stats: {...}, settings: {...} });
  *   const data = profiles.load('ABC123');
  */
 
 const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
+const MMProfile = require('../profile');
 
 const DB_PATH = path.join(__dirname, 'profiles.json');
 
@@ -59,13 +61,13 @@ function generateCode() {
 
 /**
  * Create a new profile and return its code.
- * @param {object} data - { name, stats, matchHistory, settings }
+ * @param {object} data - { name, avatar, title, bio, stats, matchHistory, settings }
  * @returns {{ code: string }}
  */
 function create(data) {
   const code = generateCode();
   db[code] = {
-    ...sanitize(data),
+    ...MMProfile.sanitize(data || {}),
     createdAt: Date.now(),
     updatedAt: Date.now(),
   };
@@ -76,7 +78,7 @@ function create(data) {
 /**
  * Save/update an existing profile.
  * @param {string} code
- * @param {object} data - { name, stats, matchHistory, settings }
+ * @param {object} data - { name, avatar, title, bio, stats, matchHistory, settings }
  * @returns {{ ok: boolean, error?: string }}
  */
 function save(code, data) {
@@ -86,7 +88,7 @@ function save(code, data) {
   
   db[code] = {
     ...db[code],
-    ...sanitize(data),
+    ...MMProfile.sanitize(data),
     updatedAt: Date.now(),
   };
   saveDB();
@@ -116,44 +118,6 @@ function load(code) {
 function exists(code) {
   code = (code || '').toUpperCase().trim();
   return !!db[code];
-}
-
-/**
- * Sanitize incoming data — only keep allowed fields.
- */
-function sanitize(data) {
-  const clean = {};
-  if (data.name && typeof data.name === 'string') {
-    clean.name = data.name.slice(0, 30);
-  }
-  if (data.stats && typeof data.stats === 'object') {
-    clean.stats = {
-      level: Number(data.stats.level) || 1,
-      xp: Number(data.stats.xp) || 0,
-      xpToNext: Number(data.stats.xpToNext) || 100,
-      wins: Number(data.stats.wins) || 0,
-      losses: Number(data.stats.losses) || 0,
-      draws: Number(data.stats.draws) || 0,
-      rating: Number(data.stats.rating) || 1000,
-      winStreak: Number(data.stats.winStreak) || 0,
-      bestWinStreak: Number(data.stats.bestWinStreak) || 0,
-    };
-  }
-  if (Array.isArray(data.matchHistory)) {
-    // Keep last 20 matches max
-    clean.matchHistory = data.matchHistory.slice(-20);
-  }
-  if (data.settings && typeof data.settings === 'object') {
-    clean.settings = {
-      uiSize: data.settings.uiSize || 'normal',
-      cardAnimations: !!data.settings.cardAnimations,
-      targetHighlight: !!data.settings.targetHighlight,
-      autoSortHand: !!data.settings.autoSortHand,
-      showExpressionHint: !!data.settings.showExpressionHint,
-      soundEffects: !!data.settings.soundEffects,
-    };
-  }
-  return clean;
 }
 
 // Initialize

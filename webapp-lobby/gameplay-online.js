@@ -111,7 +111,7 @@
     const oppCount = serverState.opponentHandCount || 0;
     opp.hand = [];
     for (let i = 0; i < oppCount; i++) {
-      opp.hand.push({ type: CardType.Number, value: '?', faceDown: true });
+      opp.hand.push({ type: CardType.Number, value: 0, faceDown: true });
     }
 
     // ── Playfield: show active player's playfield ──
@@ -260,6 +260,11 @@
       gameState.gameOver = true;
       gameState.winner = data.winner ? serverToLocal(data.winner) : 0;
       gameState.matchStats.endTime = Date.now();
+      if (data.duration) {
+        // Use server duration to compute proper startTime
+        gameState.matchStats.startTime = Date.now() - data.duration * 1000;
+      }
+      if (data.turnNumber) GP.turnNumber = data.turnNumber;
 
       // Remap scores: me → slot 0, opponent → slot 1
       const sPid = GP.serverPlayerId;
@@ -267,6 +272,30 @@
       gameState.players[0].score = data.scores[sPid] || 0;
       gameState.players[1].score = data.scores[sOpp] || 0;
 
+      // Remap player names
+      if (data.players) {
+        data.players.forEach(p => {
+          if (p.playerId === sPid) {
+            gameState.players[0].name = p.name;
+          } else {
+            gameState.players[1].name = p.name;
+          }
+        });
+      }
+
+      // Remap score piles
+      if (data.scorePiles) {
+        gameState.players[0].scorePile = (data.scorePiles[sPid] || []).map(p => ({
+          expression: p.exprString,
+          target: p.target,
+        }));
+        gameState.players[1].scorePile = (data.scorePiles[sOpp] || []).map(p => ({
+          expression: p.exprString,
+          target: p.target,
+        }));
+      }
+
+      // Remap match stats
       if (data.matchStats) {
         const myStats = data.matchStats[sPid];
         const oppStats = data.matchStats[sOpp];
@@ -278,6 +307,7 @@
             expressionsScored: myStats.expressionsScored || [],
             rehandsUsed: myStats.rehandsUsed || 0,
             timeSaved: myStats.timeSaved || 0,
+            bestExpression: myStats.bestExpression || null,
           });
         }
         if (oppStats && gameState.matchStats.players[1]) {
@@ -288,9 +318,13 @@
             expressionsScored: oppStats.expressionsScored || [],
             rehandsUsed: oppStats.rehandsUsed || 0,
             timeSaved: oppStats.timeSaved || 0,
+            bestExpression: oppStats.bestExpression || null,
           });
         }
       }
+
+      // Update scores UI before showing modal
+      GP.updateScores();
       showGameOverModal();
     });
 

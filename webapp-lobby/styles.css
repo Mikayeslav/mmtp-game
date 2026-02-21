@@ -272,6 +272,397 @@ body {
 .player-name-display {
   color: var(--accent);
   font-weight: 500;
+  display: none; /* Name shown inline in profile card input now */
+}
+
+/* ══════════════════════════════════════════════════════════════
+   Profile Card
+   ══════════════════════════════════════════════════════════════ */
+.profile-card {
+  background: linear-gradient(135deg, var(--bg-tertiary) 0%, var(--bg-secondary) 100%);
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius);
+  padding: 16px;
+  position: relative;
+  overflow: hidden;
+}
+.profile-card::before {
+  content: '';
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  height: 3px;
+  background: linear-gradient(90deg, var(--accent), #8b5cf6, #ec4899);
+  border-radius: var(--radius) var(--radius) 0 0;
+}
+
+/* Header: avatar + name/title + rank badge */
+.profile-card-header {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin-bottom: 12px;
+}
+
+.profile-avatar {
+  width: 56px;
+  height: 56px;
+  font-size: 2rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--bg-primary);
+  border: 2px solid var(--border-light);
+  border-radius: 50%;
+  cursor: pointer;
+  transition: border-color 0.2s, transform 0.15s;
+  flex-shrink: 0;
+  line-height: 1;
+  padding: 0;
+  color: inherit;
+  font-family: inherit;
+}
+.profile-avatar:hover {
+  border-color: var(--accent);
+  transform: scale(1.08);
+}
+
+.profile-identity {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.profile-name-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.profile-name-row .player-name-input {
+  font-size: 1.1rem;
+  font-weight: 600;
+  padding: 4px 8px;
+  min-width: 0;
+  flex: 1;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 4px;
+  color: var(--text-primary);
+}
+.profile-name-row .player-name-input:hover {
+  border-color: var(--border);
+}
+.profile-name-row .player-name-input:focus {
+  outline: none;
+  border-color: var(--accent);
+  background: var(--bg-primary);
+  box-shadow: 0 0 0 2px rgba(74, 158, 255, 0.15);
+}
+
+.profile-title {
+  background: none;
+  border: 1px solid transparent;
+  border-radius: 4px;
+  padding: 2px 6px;
+  font-size: 0.8rem;
+  color: var(--text-muted);
+  cursor: pointer;
+  text-align: left;
+  font-family: inherit;
+  transition: color 0.2s, border-color 0.2s;
+  width: fit-content;
+}
+.profile-title:hover {
+  color: var(--accent);
+  border-color: var(--border);
+}
+
+.profile-rank-badge {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  padding: 6px 10px;
+  background: var(--bg-primary);
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border);
+  flex-shrink: 0;
+}
+.rank-icon {
+  font-size: 1.3rem;
+  line-height: 1;
+}
+.rank-name {
+  font-size: 0.65rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  white-space: nowrap;
+}
+
+/* Bio row */
+.profile-bio-row {
+  margin-bottom: 12px;
+}
+.profile-bio-input {
+  width: 100%;
+  padding: 6px 10px;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 4px;
+  color: var(--text-secondary);
+  font-size: 0.82rem;
+  font-family: inherit;
+  font-style: italic;
+  transition: border-color 0.2s, background 0.2s;
+}
+.profile-bio-input::placeholder {
+  color: var(--text-muted);
+}
+.profile-bio-input:hover {
+  border-color: var(--border);
+}
+.profile-bio-input:focus {
+  outline: none;
+  border-color: var(--accent);
+  background: var(--bg-primary);
+  box-shadow: 0 0 0 2px rgba(74, 158, 255, 0.1);
+  font-style: normal;
+}
+
+/* XP & Rank bars */
+.profile-card-bars {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 14px;
+}
+.profile-bar-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.bar-label {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--text-secondary);
+  min-width: 36px;
+  text-align: right;
+}
+.profile-bar {
+  flex: 1;
+  height: 8px;
+  background: var(--bg-primary);
+  border-radius: 4px;
+  overflow: hidden;
+  position: relative;
+}
+.profile-bar-fill {
+  height: 100%;
+  border-radius: 4px;
+  transition: width 0.5s ease;
+}
+.xp-bar-fill {
+  background: linear-gradient(90deg, var(--accent), #8b5cf6);
+}
+.rank-bar-fill {
+  background: linear-gradient(90deg, #c0c0c0, #ffd700);
+}
+.bar-value {
+  font-size: 0.72rem;
+  color: var(--text-muted);
+  min-width: 70px;
+  text-align: left;
+  white-space: nowrap;
+}
+
+/* Mini stat grid */
+.profile-card-stats {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 6px;
+}
+@media (min-width: 600px) {
+  .profile-card-stats {
+    grid-template-columns: repeat(6, 1fr);
+  }
+}
+.pcs-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 8px 4px;
+  background: var(--bg-primary);
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border);
+}
+.pcs-val {
+  font-size: 1.15rem;
+  font-weight: 700;
+  color: var(--text-primary);
+  line-height: 1.2;
+}
+.pcs-lbl {
+  font-size: 0.65rem;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+}
+
+/* Favourite op badge */
+.profile-fav-op {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  font-size: 1.2rem;
+  opacity: 0.25;
+}
+
+/* Detailed stats collapsible */
+.player-stats-details {
+  margin-top: 4px;
+}
+.player-stats-details summary {
+  cursor: pointer;
+  font-size: 0.82rem;
+  color: var(--text-muted);
+  padding: 6px 0;
+  user-select: none;
+}
+.player-stats-details summary:hover {
+  color: var(--text-secondary);
+}
+.player-stats-details[open] > .player-stats {
+  margin-top: 10px;
+}
+
+/* ── Avatar Picker ── */
+.picker-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 1100;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0,0,0,0.6);
+  backdrop-filter: blur(4px);
+}
+.picker-modal-content {
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius);
+  padding: 20px;
+  max-width: 420px;
+  width: 90vw;
+  max-height: 70vh;
+  overflow-y: auto;
+  box-shadow: 0 8px 32px rgba(0,0,0,0.5);
+}
+.picker-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 14px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid var(--border);
+}
+.picker-header h3 {
+  font-size: 1rem;
+  font-weight: 600;
+}
+.btn-picker-close {
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  font-size: 1.5rem;
+  cursor: pointer;
+  padding: 0 4px;
+  line-height: 1;
+}
+.btn-picker-close:hover {
+  color: var(--error);
+}
+
+.avatar-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(60px, 1fr));
+  gap: 8px;
+}
+.avatar-option {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding: 10px 4px;
+  border-radius: var(--radius-sm);
+  border: 2px solid transparent;
+  background: var(--bg-tertiary);
+  cursor: pointer;
+  transition: border-color 0.15s, transform 0.1s;
+}
+.avatar-option:hover {
+  border-color: var(--accent);
+  transform: scale(1.05);
+}
+.avatar-option.selected {
+  border-color: var(--accent);
+  background: var(--accent-dim);
+}
+.avatar-option.locked {
+  opacity: 0.4;
+  cursor: not-allowed;
+  filter: grayscale(0.8);
+}
+.avatar-option .avatar-emoji {
+  font-size: 1.6rem;
+}
+.avatar-option .avatar-name {
+  font-size: 0.6rem;
+  color: var(--text-muted);
+  text-align: center;
+  line-height: 1.2;
+}
+.avatar-option .avatar-lock {
+  font-size: 0.55rem;
+  color: var(--warning);
+}
+
+/* ── Title Picker ── */
+.title-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.title-option {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 12px;
+  border-radius: var(--radius-sm);
+  border: 1px solid transparent;
+  background: var(--bg-tertiary);
+  cursor: pointer;
+  transition: border-color 0.15s, background 0.15s;
+}
+.title-option:hover {
+  border-color: var(--accent);
+}
+.title-option.selected {
+  border-color: var(--accent);
+  background: var(--accent-dim);
+}
+.title-option.locked {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+.title-option .title-label {
+  font-size: 0.9rem;
+  font-weight: 500;
+}
+.title-option .title-req {
+  font-size: 0.7rem;
+  color: var(--text-muted);
 }
 
 .player-stats {
