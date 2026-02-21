@@ -2360,21 +2360,31 @@
         console.warn('Failed to save match history', e);
       }
 
-      // Auto-save profile to server if a profile code exists
+      // Auto-save full profile to server if a profile code exists
       try {
         const profileCode = localStorage.getItem('mmtp-profile-code');
         if (profileCode && profileCode.length === 6) {
           const stats = JSON.parse(localStorage.getItem('mmtp-player-stats') || '{}');
           const name = localStorage.getItem('mmtp-player-name') || 'Player';
           const history = JSON.parse(localStorage.getItem('mmtp-match-history') || '[]');
+          const achievements = JSON.parse(localStorage.getItem('mmtp-achievements') || '{}');
           fetch('/api/profile/save', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ code: profileCode, name, stats, matchHistory: history.slice(-20) }),
+            body: JSON.stringify({
+              code: profileCode,
+              name,
+              avatar: localStorage.getItem('mmtp-player-avatar') || '🃏',
+              title: localStorage.getItem('mmtp-player-title') || '',
+              bio: localStorage.getItem('mmtp-player-bio') || '',
+              stats,
+              matchHistory: history.slice(-20),
+              achievements,
+            }),
           }).then(r => r.json()).then(res => {
-            if (res.ok) console.log('[Profile] Auto-saved to server');
-            else console.warn('[Profile] Auto-save failed:', res.error);
-          }).catch(e => console.warn('[Profile] Auto-save error:', e.message));
+            if (res.ok) console.log('[Account] Auto-saved to cloud after game');
+            else console.warn('[Account] Cloud save failed:', res.error);
+          }).catch(e => console.warn('[Account] Cloud save error:', e.message));
         }
       } catch (e) {
         // Silent fail — auto-save is best-effort

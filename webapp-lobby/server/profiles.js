@@ -59,6 +59,15 @@ function generateCode() {
   return code;
 }
 
+// Generate a 4-digit PIN
+function generatePin() {
+  const digits = '0123456789';
+  const bytes = crypto.randomBytes(4);
+  let pin = '';
+  for (let i = 0; i < 4; i++) pin += digits[bytes[i] % 10];
+  return pin;
+}
+
 /**
  * Create a new profile and return its code.
  * @param {object} data - { name, avatar, title, bio, stats, matchHistory, settings }
@@ -66,13 +75,16 @@ function generateCode() {
  */
 function create(data) {
   const code = generateCode();
+  const pin = generatePin();
   db[code] = {
     ...MMProfile.sanitize(data || {}),
+    pin,
     createdAt: Date.now(),
     updatedAt: Date.now(),
   };
   saveDB();
-  return { code };
+  console.log(`[Profiles] Created profile ${code} for "${(data && data.name) || 'Unknown'}"`);
+  return { code, pin };
 }
 
 /**
@@ -96,7 +108,7 @@ function save(code, data) {
 }
 
 /**
- * Load a profile by code.
+ * Load a profile by code. Returns data WITHOUT the pin for security.
  * @param {string} code
  * @returns {{ ok: boolean, data?: object, error?: string }}
  */
@@ -109,7 +121,60 @@ function load(code) {
   db[code].lastAccessed = Date.now();
   saveDB();
 
-  return { ok: true, data: db[code] };
+  // Strip pin from returned data
+  const { pin, ...safeData } = db[code];
+  return { ok: true, data: safeData };
+}
+
+/**
+ * Login: verify code + pin, return profile data.
+ * @param {string} code
+ * @param {string} pin - 4-digit PIN
+ * @returns {{ ok: boolean, data?: object, error?: string }}
+ */
+function login(code, pin) {
+  code = (code || '').toUpperCase().trim();
+  pin = (pin || '').trim();
+  if (!code || code.length !== 6) return { ok: false, error: 'Invalid profile code' };
+  if (!db[code]) return { ok: false, error: 'Profile not found' };
+  // Legacy profiles without pin — accept any pin and set one
+  if (!db[code].pin) {
+    if (pin && pin.length === 4) {
+      db[code].pin = pin;
+      saveDB();
+      console.log(`[Profiles] Set PIN for legacy profile ${code}`);
+    }
+    const { pin: _p, ...safeData } = db[code];
+    db[code].lastAccessed = Date.now();
+    return { ok: true, data: safeData };
+  }
+  if (db[code].pin !== pin) return { ok: false, error: 'Incorrect PIN' };
+  db[code].lastAccessed = Date.now();
+  saveDB();
+  const { pin: _p, ...safeData } = db[code];
+  return { ok: true, data: safeData };
+}
+
+/**
+ * Lookup profiles by name (case-insensitive partial match).
+ * Returns limited public info for account recovery.
+ * @param {string} name
+ * @returns {Array<{ code: string, codeHint: string, name: string, avatar: string, level: number }>}
+ */
+function lookupByName(name) {
+  name = (name || '').trim().toLowerCase();
+  if (!name || name.length < 2) return [];
+  return Object.entries(db)
+    .filter(([, data]) => (data.name || '').toLowerCase().includes(name))
+    .slice(0, 10)
+    .map(([code, data]) => ({
+      code, // full code — user still needs PIN to login
+      codeHint: code.slice(0, 2) + '****',
+      name: data.name || 'Unknown',
+      avatar: data.avatar || '🃏',
+      level: (data.stats && data.stats.level) || 1,
+      createdAt: data.createdAt,
+    }));
 }
 
 /**
@@ -189,4 +254,4 @@ function leaderboard(limit = 50) {
   return entries;
 }
 
-module.exports = { create, save, load, exists, generateCode, listAll, remove, leaderboard };
+module.exports = { create, save, load, login, lookupByName, exists, generateCode, listAll, remove, leaderboard };

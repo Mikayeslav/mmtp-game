@@ -118,20 +118,15 @@
           <button id="btn-sign-out" class="btn btn-small btn-danger-small" title="Clear profile & sign out">🚪 Sign Out</button>
         </div>
 
-        <!-- Profile Sync -->
-        <div class="profile-sync-section collapsible-section">
-          <h4 class="section-toggle" id="profile-sync-toggle"><span class="toggle-icon">▶</span> Cloud Save</h4>
-          <div class="section-body collapsed" id="profile-sync-body">
-          <div class="profile-code-row">
-            <label for="profile-code-input">Profile Code:</label>
-            <input type="text" id="profile-code-input" class="profile-code-input" maxlength="6" placeholder="XXXXXX" autocomplete="off" spellcheck="false">
-            <button id="btn-profile-load" class="btn btn-small">Load</button>
-            <button id="btn-profile-save" class="btn btn-small">Save</button>
-            <button id="btn-profile-create" class="btn btn-small btn-accent">New</button>
-          </div>
-          <div id="profile-status" class="profile-status hidden"></div>
-          </div>
+        <!-- Account Status Bar -->
+        <div id="account-status-bar" class="account-status-bar">
+          <span id="account-status-text" class="account-status-text">Not signed in</span>
+          <button id="btn-account-manage" class="btn btn-small btn-tool" title="Account settings">⚙ Account</button>
         </div>
+        <div id="profile-status" class="profile-status hidden"></div>
+
+        <!-- Hidden inputs for backward compat with app-cheat.js -->
+        <input type="hidden" id="profile-code-input" value="">
 
         <!-- Detailed Stats (collapsible) -->
         <details class="player-stats-details">
@@ -648,6 +643,108 @@
           <button id="btn-lb-refresh" class="btn btn-small btn-tool">🔄 Refresh</button>
           <span id="lb-last-updated" class="lb-meta"></span>
         </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══ Welcome / Login Modal ═══ -->
+  <div id="welcome-modal" class="modal hidden" role="dialog" aria-modal="true">
+    <div class="modal-backdrop"></div>
+    <div class="modal-content welcome-modal-content">
+      <!-- Step 1: New or Returning -->
+      <div id="welcome-step-choice" class="welcome-step">
+        <h2>Welcome to MMtp!</h2>
+        <p class="welcome-subtitle">Math expression card game</p>
+        <div class="welcome-buttons">
+          <button id="btn-welcome-new" class="btn btn-primary btn-large">🆕 I'm New</button>
+          <button id="btn-welcome-returning" class="btn btn-accent btn-large">🔑 I Have an Account</button>
+        </div>
+        <button id="btn-welcome-skip" class="btn btn-small btn-ghost">Play as Guest</button>
+      </div>
+
+      <!-- Step 2a: New Player — enter name -->
+      <div id="welcome-step-new" class="welcome-step hidden">
+        <h2>Create Account</h2>
+        <div class="welcome-field">
+          <label for="welcome-name-input">Choose a display name</label>
+          <input type="text" id="welcome-name-input" class="welcome-input" maxlength="24" placeholder="Your name..." autocomplete="off">
+        </div>
+        <div class="welcome-buttons">
+          <button id="btn-welcome-create" class="btn btn-primary">Create</button>
+          <button id="btn-welcome-back-1" class="btn btn-small btn-ghost">← Back</button>
+        </div>
+        <div id="welcome-create-status" class="welcome-status hidden"></div>
+      </div>
+
+      <!-- Step 2b: Created! — show code + pin -->
+      <div id="welcome-step-created" class="welcome-step hidden">
+        <h2>Account Created! 🎉</h2>
+        <p>Save these — you'll need them to log in on other devices:</p>
+        <div class="welcome-credentials">
+          <div class="credential-row">
+            <span class="credential-label">Profile Code</span>
+            <span id="welcome-show-code" class="credential-value">------</span>
+          </div>
+          <div class="credential-row">
+            <span class="credential-label">PIN</span>
+            <span id="welcome-show-pin" class="credential-value">----</span>
+          </div>
+        </div>
+        <p class="welcome-hint">💡 Your code + PIN are saved on this device. Write them down if you want to log in elsewhere.</p>
+        <button id="btn-welcome-done" class="btn btn-primary btn-large">Let's Play!</button>
+      </div>
+
+      <!-- Step 3: Returning Player — login -->
+      <div id="welcome-step-login" class="welcome-step hidden">
+        <h2>Welcome Back</h2>
+        <div class="welcome-field">
+          <label for="welcome-code-input">Profile Code</label>
+          <input type="text" id="welcome-code-input" class="welcome-input mono" maxlength="6" placeholder="ABC123" autocomplete="off" spellcheck="false">
+        </div>
+        <div class="welcome-field">
+          <label for="welcome-pin-input">PIN</label>
+          <input type="text" id="welcome-pin-input" class="welcome-input mono" maxlength="4" placeholder="1234" autocomplete="off" inputmode="numeric">
+        </div>
+        <div class="welcome-buttons">
+          <button id="btn-welcome-login" class="btn btn-primary">Log In</button>
+          <button id="btn-welcome-back-2" class="btn btn-small btn-ghost">← Back</button>
+        </div>
+        <div class="welcome-divider"><span>or find by name</span></div>
+        <div class="welcome-field">
+          <input type="text" id="welcome-lookup-input" class="welcome-input" maxlength="24" placeholder="Search by name..." autocomplete="off">
+          <button id="btn-welcome-lookup" class="btn btn-small">Search</button>
+        </div>
+        <div id="welcome-lookup-results" class="welcome-lookup-results hidden"></div>
+        <div id="welcome-login-status" class="welcome-status hidden"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══ Account Management Modal ═══ -->
+  <div id="account-modal" class="modal hidden" role="dialog" aria-modal="true">
+    <div class="modal-backdrop"></div>
+    <div class="modal-content account-modal-content">
+      <div class="modal-header">
+        <h3>Account</h3>
+        <button id="btn-account-close" class="btn-close">&times;</button>
+      </div>
+      <div class="account-info">
+        <div class="credential-row">
+          <span class="credential-label">Profile Code</span>
+          <span id="account-code-display" class="credential-value">------</span>
+        </div>
+        <div class="credential-row">
+          <span class="credential-label">PIN</span>
+          <span id="account-pin-display" class="credential-value">••••</span>
+          <button id="btn-account-show-pin" class="btn btn-small btn-ghost">Show</button>
+        </div>
+        <div id="account-sync-status" class="account-sync-status">
+          <span id="account-sync-text">Checking...</span>
+        </div>
+      </div>
+      <div class="account-actions">
+        <button id="btn-account-save-now" class="btn btn-small btn-primary">💾 Save Now</button>
+        <button id="btn-account-reload" class="btn btn-small btn-tool">🔄 Reload from Cloud</button>
       </div>
     </div>
   </div>

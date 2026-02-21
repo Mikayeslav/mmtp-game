@@ -1186,6 +1186,11 @@
     renderLobby();
     // Focus name input for accessibility
     if (playerNameInput) playerNameInput.focus();
+
+    // Start account system (auto-load or welcome modal)
+    if (typeof App.accountStartup === 'function') {
+      App.accountStartup();
+    }
   }
 
   // Auto-skip splash if returning from gameplay or already seen this session
@@ -2324,8 +2329,7 @@
   const btnSignOut = $('btn-sign-out');
   if (btnSignOut) {
     btnSignOut.addEventListener('click', () => {
-      if (!confirm('Sign out? This will clear your local profile data.')) return;
-      // Clear all MMtp localStorage
+      if (!confirm('Sign out? This will clear your local profile data.\nYour cloud data is safe — log in with your code + PIN to restore.')) return;
       const keysToRemove = [];
       for (let i = 0; i < localStorage.length; i++) {
         const key = localStorage.key(i);
@@ -2333,10 +2337,463 @@
       }
       keysToRemove.forEach(k => localStorage.removeItem(k));
       sessionStorage.clear();
-      // Reload
       window.location.reload();
     });
   }
+
+  // ══════════════════════════════════════════════════════════════
+  // ── Account System (Welcome Modal + Auto-Load + Account Mgmt)
+  // ══════════════════════════════════════════════════════════════
+  const STORAGE_PIN = 'mmtp-profile-pin';
+
+  // DOM — Welcome modal
+  const welcomeModal      = $('welcome-modal');
+  const stepChoice         = $('welcome-step-choice');
+  const stepNew            = $('welcome-step-new');
+  const stepCreated        = $('welcome-step-created');
+  const stepLogin          = $('welcome-step-login');
+  const welcomeNameInput   = $('welcome-name-input');
+  const welcomeCodeInput   = $('welcome-code-input');
+  const welcomePinInput    = $('welcome-pin-input');
+  const welcomeLookupInput = $('welcome-lookup-input');
+  const lookupResults      = $('welcome-lookup-results');
+  const welcomeShowCode    = $('welcome-show-code');
+  const welcomeShowPin     = $('welcome-show-pin');
+  const createStatus       = $('welcome-create-status');
+  const loginStatus        = $('welcome-login-status');
+
+  // DOM — Account status bar
+  const accountStatusBar   = $('account-status-bar');
+  const accountStatusText  = $('account-status-text');
+  const btnAccountManage   = $('btn-account-manage');
+
+  // DOM — Account modal
+  const accountModal       = $('account-modal');
+  const accountCodeDisplay = $('account-code-display');
+  const accountPinDisplay  = $('account-pin-display');
+  const accountSyncText    = $('account-sync-text');
+  const accountSyncStatus  = $('account-sync-status');
+  const btnAccountShowPin  = $('btn-account-show-pin');
+  const btnAccountSaveNow  = $('btn-account-save-now');
+  const btnAccountReload   = $('btn-account-reload');
+  const btnAccountClose    = $('btn-account-close');
+
+  function showWelcomeStep(step) {
+    [stepChoice, stepNew, stepCreated, stepLogin].forEach(s => {
+      if (s) s.classList.toggle('hidden', s !== step);
+    });
+    if (createStatus) { createStatus.classList.add('hidden'); createStatus.textContent = ''; }
+    if (loginStatus) { loginStatus.classList.add('hidden'); loginStatus.textContent = ''; }
+    if (lookupResults) lookupResults.classList.add('hidden');
+  }
+
+  function showWelcomeModal() {
+    if (!welcomeModal) return;
+    showWelcomeStep(stepChoice);
+    welcomeModal.classList.remove('hidden');
+  }
+
+  function hideWelcomeModal() {
+    if (welcomeModal) welcomeModal.classList.add('hidden');
+  }
+
+  function showWelcomeStatus(el, msg, type) {
+    if (!el) return;
+    el.textContent = msg;
+    el.className = 'welcome-status ' + type;
+    el.classList.remove('hidden');
+  }
+
+  /** Update the account status bar in the player panel. */
+  function updateAccountStatusBar() {
+    const code = localStorage.getItem(STORAGE_PROFILE_CODE);
+    if (code && code.length === 6) {
+      if (accountStatusText) {
+        accountStatusText.textContent = `Signed in · ${code}`;
+        accountStatusText.classList.add('signed-in');
+      }
+    } else {
+      if (accountStatusText) {
+        accountStatusText.textContent = 'Not signed in (guest)';
+        accountStatusText.classList.remove('signed-in');
+      }
+    }
+  }
+
+  /** Apply loaded cloud profile data to local state + UI. */
+  function applyCloudProfile(data) {
+    console.log('[Account] Applying cloud profile:', data.name);
+    if (data.name) {
+      saveName(data.name);
+      if (playerNameInput) playerNameInput.value = data.name;
+    }
+    if (data.avatar) localStorage.setItem(STORAGE_AVATAR, data.avatar);
+    if (data.title) localStorage.setItem(STORAGE_TITLE, data.title);
+    if (typeof data.bio === 'string') {
+      localStorage.setItem(STORAGE_BIO, data.bio);
+      const bioInput = $('profile-bio-input');
+      if (bioInput) bioInput.value = data.bio;
+    }
+    if (data.stats) {
+      state.stats = {
+        level: data.stats.level ?? 1,
+        xp: data.stats.xp ?? 0,
+        xpToNext: data.stats.xpToNext ?? 100,
+        wins: data.stats.wins ?? 0,
+        losses: data.stats.losses ?? 0,
+        draws: data.stats.draws ?? 0,
+        rating: data.stats.rating ?? 1000,
+        lastPlayed: data.stats.lastPlayed ?? null,
+        winStreak: data.stats.winStreak ?? 0,
+        bestWinStreak: data.stats.bestWinStreak ?? 0,
+      };
+      saveStats();
+    }
+    if (Array.isArray(data.matchHistory)) {
+      try { localStorage.setItem('mmtp-match-history', JSON.stringify(data.matchHistory.slice(-20))); } catch (e) {}
+    }
+    if (data.achievements && typeof data.achievements === 'object') {
+      try { localStorage.setItem('mmtp-achievements', JSON.stringify(data.achievements)); } catch (e) {}
+    }
+    if (data.settings && typeof data.settings === 'object') {
+      // Apply settings
+      if (data.settings.uiSize) localStorage.setItem('mmtp-ui-size', data.settings.uiSize);
+    }
+    updatePlayerPanel();
+    updateAccountStatusBar();
+  }
+
+  /** Gather local profile data for saving to cloud. */
+  function gatherLocalProfile() {
+    const name = (playerNameInput && playerNameInput.value.trim()) || loadName();
+    const matchHistory = JSON.parse(localStorage.getItem('mmtp-match-history') || '[]');
+    const achievements = JSON.parse(localStorage.getItem('mmtp-achievements') || '{}');
+    return {
+      name,
+      avatar: localStorage.getItem(STORAGE_AVATAR) || '🃏',
+      title: localStorage.getItem(STORAGE_TITLE) || '',
+      bio: localStorage.getItem(STORAGE_BIO) || '',
+      stats: { ...state.stats },
+      matchHistory: matchHistory.slice(-20),
+      achievements,
+      settings: {
+        uiSize: localStorage.getItem('mmtp-ui-size') || 'normal',
+        soundEffects: localStorage.getItem('mmtp-sound-enabled') !== 'false',
+      },
+    };
+  }
+
+  /** Auto-load profile from cloud on startup (silent). */
+  async function autoLoadProfile() {
+    const code = localStorage.getItem(STORAGE_PROFILE_CODE);
+    if (!code || code.length !== 6) {
+      console.log('[Account] No profile code stored — will show welcome modal');
+      return false;
+    }
+    console.log('[Account] Auto-loading profile', code, '...');
+    try {
+      const res = await fetch(`/api/profile/load/${encodeURIComponent(code)}`);
+      const result = await res.json();
+      if (result.ok && result.data) {
+        applyCloudProfile(result.data);
+        console.log('[Account] Profile loaded successfully:', result.data.name);
+        updateAccountStatusBar();
+        return true;
+      } else {
+        console.warn('[Account] Cloud load failed:', result.error);
+        // Profile exists locally but not on server — still allow play
+        updateAccountStatusBar();
+        return false;
+      }
+    } catch (e) {
+      console.warn('[Account] Server unreachable for auto-load:', e.message);
+      updateAccountStatusBar();
+      return false;
+    }
+  }
+
+  /** Save current profile to cloud. Returns true on success. */
+  async function saveProfileToCloud() {
+    const code = localStorage.getItem(STORAGE_PROFILE_CODE);
+    if (!code || code.length !== 6) return false;
+    try {
+      const data = gatherLocalProfile();
+      const res = await fetch('/api/profile/save', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ code, ...data }),
+      });
+      const result = await res.json();
+      if (result.ok) {
+        console.log('[Account] Saved to cloud ✓');
+        return true;
+      }
+      console.warn('[Account] Cloud save failed:', result.error);
+      return false;
+    } catch (e) {
+      console.warn('[Account] Server unreachable for save:', e.message);
+      return false;
+    }
+  }
+
+  // ── Debounced auto-save ──
+  let _accountAutoSaveTimer = null;
+  function scheduleAutoSave() {
+    const code = localStorage.getItem(STORAGE_PROFILE_CODE);
+    if (!code || code.length !== 6) return;
+    clearTimeout(_accountAutoSaveTimer);
+    _accountAutoSaveTimer = setTimeout(() => saveProfileToCloud(), 3000);
+  }
+  // Expose for external modules
+  App.scheduleProfileAutoSave = scheduleAutoSave;
+
+  // Auto-save on name/bio blur
+  if (playerNameInput) playerNameInput.addEventListener('blur', scheduleAutoSave);
+  const biInput = $('profile-bio-input');
+  if (biInput) biInput.addEventListener('blur', scheduleAutoSave);
+
+  // ── Welcome Modal Buttons ──
+  const btnWelcomeNew       = $('btn-welcome-new');
+  const btnWelcomeReturning = $('btn-welcome-returning');
+  const btnWelcomeSkip      = $('btn-welcome-skip');
+  const btnWelcomeCreate    = $('btn-welcome-create');
+  const btnWelcomeBack1     = $('btn-welcome-back-1');
+  const btnWelcomeBack2     = $('btn-welcome-back-2');
+  const btnWelcomeDone      = $('btn-welcome-done');
+  const btnWelcomeLogin     = $('btn-welcome-login');
+  const btnWelcomeLookup    = $('btn-welcome-lookup');
+
+  if (btnWelcomeNew) btnWelcomeNew.addEventListener('click', () => showWelcomeStep(stepNew));
+  if (btnWelcomeReturning) btnWelcomeReturning.addEventListener('click', () => showWelcomeStep(stepLogin));
+  if (btnWelcomeSkip) btnWelcomeSkip.addEventListener('click', () => {
+    hideWelcomeModal();
+    setStatus('Playing as guest — your stats are saved locally only', 'info');
+  });
+  if (btnWelcomeBack1) btnWelcomeBack1.addEventListener('click', () => showWelcomeStep(stepChoice));
+  if (btnWelcomeBack2) btnWelcomeBack2.addEventListener('click', () => showWelcomeStep(stepChoice));
+  if (btnWelcomeDone) btnWelcomeDone.addEventListener('click', () => {
+    hideWelcomeModal();
+    if (window.SFX) SFX.play('score');
+  });
+
+  // Create new account
+  if (btnWelcomeCreate) btnWelcomeCreate.addEventListener('click', async () => {
+    const name = (welcomeNameInput && welcomeNameInput.value.trim()) || '';
+    if (!name || name.length < 1) {
+      showWelcomeStatus(createStatus, 'Please enter a name', 'error');
+      return;
+    }
+    btnWelcomeCreate.disabled = true;
+    btnWelcomeCreate.textContent = 'Creating...';
+    try {
+      const res = await fetch('/api/profile/create', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name, avatar: '🃏' }),
+      });
+      const result = await res.json();
+      if (result.ok && result.code) {
+        localStorage.setItem(STORAGE_PROFILE_CODE, result.code);
+        localStorage.setItem(STORAGE_PIN, result.pin);
+        // Also set the hidden input for backward compat
+        const pci = $('profile-code-input');
+        if (pci) pci.value = result.code;
+        saveName(name);
+        if (playerNameInput) playerNameInput.value = name;
+        if (welcomeShowCode) welcomeShowCode.textContent = result.code;
+        if (welcomeShowPin) welcomeShowPin.textContent = result.pin;
+        updateAccountStatusBar();
+        updatePlayerPanel();
+        showWelcomeStep(stepCreated);
+        console.log('[Account] Created profile:', result.code, 'for', name);
+      } else {
+        showWelcomeStatus(createStatus, result.error || 'Failed to create account', 'error');
+      }
+    } catch (e) {
+      showWelcomeStatus(createStatus, 'Server unreachable — try again later', 'error');
+    } finally {
+      btnWelcomeCreate.disabled = false;
+      btnWelcomeCreate.textContent = 'Create';
+    }
+  });
+
+  // Login with code + pin
+  if (btnWelcomeLogin) btnWelcomeLogin.addEventListener('click', async () => {
+    const code = (welcomeCodeInput && welcomeCodeInput.value || '').toUpperCase().trim();
+    const pin = (welcomePinInput && welcomePinInput.value || '').trim();
+    if (!code || code.length !== 6) {
+      showWelcomeStatus(loginStatus, 'Enter your 6-character profile code', 'error');
+      return;
+    }
+    if (!pin || pin.length !== 4) {
+      showWelcomeStatus(loginStatus, 'Enter your 4-digit PIN', 'error');
+      return;
+    }
+    btnWelcomeLogin.disabled = true;
+    btnWelcomeLogin.textContent = 'Logging in...';
+    try {
+      const res = await fetch('/api/profile/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ code, pin }),
+      });
+      const result = await res.json();
+      if (result.ok && result.data) {
+        localStorage.setItem(STORAGE_PROFILE_CODE, code);
+        localStorage.setItem(STORAGE_PIN, pin);
+        const pci = $('profile-code-input');
+        if (pci) pci.value = code;
+        applyCloudProfile(result.data);
+        hideWelcomeModal();
+        setStatus(`Welcome back, ${result.data.name || 'Player'}!`, 'success');
+        if (window.SFX) SFX.play('score');
+        console.log('[Account] Logged in as:', result.data.name, code);
+      } else {
+        showWelcomeStatus(loginStatus, result.error || 'Login failed', 'error');
+      }
+    } catch (e) {
+      showWelcomeStatus(loginStatus, 'Server unreachable — try again later', 'error');
+    } finally {
+      btnWelcomeLogin.disabled = false;
+      btnWelcomeLogin.textContent = 'Log In';
+    }
+  });
+
+  // Name lookup
+  if (btnWelcomeLookup) btnWelcomeLookup.addEventListener('click', async () => {
+    const name = (welcomeLookupInput && welcomeLookupInput.value || '').trim();
+    if (!name || name.length < 2) {
+      showWelcomeStatus(loginStatus, 'Enter at least 2 characters to search', 'error');
+      return;
+    }
+    btnWelcomeLookup.disabled = true;
+    try {
+      const res = await fetch(`/api/profile/lookup?name=${encodeURIComponent(name)}`);
+      const result = await res.json();
+      if (result.ok && result.results && result.results.length > 0) {
+        if (lookupResults) {
+          lookupResults.innerHTML = result.results.map(p => `
+            <div class="lookup-item" data-code="${p.code}">
+              <span class="lookup-avatar">${p.avatar}</span>
+              <span class="lookup-name">${p.name}</span>
+              <span class="lookup-hint">Lv.${p.level} · ${p.codeHint}</span>
+            </div>
+          `).join('');
+          lookupResults.classList.remove('hidden');
+          // Click to fill code
+          lookupResults.querySelectorAll('.lookup-item').forEach(item => {
+            item.addEventListener('click', () => {
+              const c = item.getAttribute('data-code');
+              if (welcomeCodeInput) { welcomeCodeInput.value = c; welcomeCodeInput.focus(); }
+              lookupResults.classList.add('hidden');
+              showWelcomeStatus(loginStatus, `Selected ${item.querySelector('.lookup-name').textContent} — now enter your PIN`, 'success');
+            });
+          });
+        }
+        if (loginStatus) loginStatus.classList.add('hidden');
+      } else {
+        if (lookupResults) lookupResults.classList.add('hidden');
+        showWelcomeStatus(loginStatus, 'No accounts found with that name', 'error');
+      }
+    } catch (e) {
+      showWelcomeStatus(loginStatus, 'Server unreachable', 'error');
+    } finally {
+      btnWelcomeLookup.disabled = false;
+    }
+  });
+
+  // Auto-uppercase inputs
+  if (welcomeCodeInput) welcomeCodeInput.addEventListener('input', () => {
+    welcomeCodeInput.value = welcomeCodeInput.value.toUpperCase().replace(/[^A-Z0-9]/g, '');
+  });
+  if (welcomePinInput) welcomePinInput.addEventListener('input', () => {
+    welcomePinInput.value = welcomePinInput.value.replace(/\D/g, '');
+  });
+
+  // ── Account Management Modal ──
+  if (btnAccountManage) btnAccountManage.addEventListener('click', () => {
+    const code = localStorage.getItem(STORAGE_PROFILE_CODE);
+    const pin = localStorage.getItem(STORAGE_PIN);
+    if (!code || code.length !== 6) {
+      // No account — show welcome modal
+      showWelcomeModal();
+      return;
+    }
+    if (accountCodeDisplay) accountCodeDisplay.textContent = code;
+    if (accountPinDisplay) accountPinDisplay.textContent = '••••';
+    if (accountSyncText) accountSyncText.textContent = 'Last auto-save: checking...';
+    if (accountModal) accountModal.classList.remove('hidden');
+    // Check connection
+    saveProfileToCloud().then(ok => {
+      if (accountSyncText) {
+        accountSyncText.textContent = ok ? 'Cloud sync: OK ✓' : 'Cloud sync: Failed ✗';
+      }
+      if (accountSyncStatus) {
+        accountSyncStatus.classList.toggle('ok', ok);
+        accountSyncStatus.classList.toggle('err', !ok);
+      }
+    });
+  });
+
+  if (btnAccountClose) btnAccountClose.addEventListener('click', () => {
+    if (accountModal) accountModal.classList.add('hidden');
+  });
+  // Close on backdrop click
+  if (accountModal) {
+    accountModal.querySelector('.modal-backdrop')?.addEventListener('click', () => {
+      accountModal.classList.add('hidden');
+    });
+  }
+
+  let _pinVisible = false;
+  if (btnAccountShowPin) btnAccountShowPin.addEventListener('click', () => {
+    _pinVisible = !_pinVisible;
+    const pin = localStorage.getItem(STORAGE_PIN) || '????';
+    if (accountPinDisplay) accountPinDisplay.textContent = _pinVisible ? pin : '••••';
+    btnAccountShowPin.textContent = _pinVisible ? 'Hide' : 'Show';
+  });
+
+  if (btnAccountSaveNow) btnAccountSaveNow.addEventListener('click', async () => {
+    btnAccountSaveNow.disabled = true;
+    btnAccountSaveNow.textContent = 'Saving...';
+    const ok = await saveProfileToCloud();
+    if (accountSyncText) accountSyncText.textContent = ok ? 'Saved to cloud ✓' : 'Save failed ✗';
+    if (accountSyncStatus) { accountSyncStatus.classList.toggle('ok', ok); accountSyncStatus.classList.toggle('err', !ok); }
+    btnAccountSaveNow.disabled = false;
+    btnAccountSaveNow.textContent = '💾 Save Now';
+    if (ok) setStatus('Profile saved to cloud', 'success');
+  });
+
+  if (btnAccountReload) btnAccountReload.addEventListener('click', async () => {
+    btnAccountReload.disabled = true;
+    btnAccountReload.textContent = 'Loading...';
+    const loaded = await autoLoadProfile();
+    if (accountSyncText) accountSyncText.textContent = loaded ? 'Reloaded from cloud ✓' : 'Reload failed ✗';
+    btnAccountReload.disabled = false;
+    btnAccountReload.textContent = '🔄 Reload from Cloud';
+    if (loaded) setStatus('Profile reloaded from cloud', 'success');
+  });
+
+  // ── Startup Account Flow ──
+  // After lobby initialises, check if user has account
+  async function accountStartup() {
+    const code = localStorage.getItem(STORAGE_PROFILE_CODE);
+    if (code && code.length === 6) {
+      // Has account — auto-load silently
+      await autoLoadProfile();
+      // Auto-save in 5 seconds (in case gameplay stats changed)
+      setTimeout(scheduleAutoSave, 5000);
+    } else {
+      // No account — show welcome modal after a short delay
+      setTimeout(() => {
+        showWelcomeModal();
+      }, 600);
+    }
+    updateAccountStatusBar();
+  }
+
+  // Run account startup once lobby is visible
+  App.accountStartup = accountStartup;
 
   // Set version number on load (ensure DOM is ready)
   function setVersion() {

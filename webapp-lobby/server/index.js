@@ -120,11 +120,11 @@ app.get('/api/leaderboard', (req, res) => {
 // ── Profile API ──
 app.use(express.json()); // Parse JSON request bodies
 
-// Create a new profile
+// Create a new profile (returns code + pin)
 app.post('/api/profile/create', (req, res) => {
   try {
-    const { code } = profiles.create(req.body);
-    res.json({ ok: true, code });
+    const result = profiles.create(req.body);
+    res.json({ ok: true, code: result.code, pin: result.pin });
   } catch (e) {
     res.json({ ok: false, error: e.message });
   }
@@ -137,10 +137,24 @@ app.post('/api/profile/save', (req, res) => {
   res.json(result);
 });
 
-// Load profile
+// Load profile (no auth needed — returns data without pin)
 app.get('/api/profile/load/:code', (req, res) => {
   const result = profiles.load(req.params.code);
   res.json(result);
+});
+
+// Login — verify code + pin, return full profile
+app.post('/api/profile/login', (req, res) => {
+  const { code, pin } = req.body;
+  const result = profiles.login(code, pin);
+  res.json(result);
+});
+
+// Lookup profiles by name (for account recovery)
+app.get('/api/profile/lookup', (req, res) => {
+  const name = req.query.name || '';
+  const results = profiles.lookupByName(name);
+  res.json({ ok: true, results });
 });
 
 // Check if profile exists
