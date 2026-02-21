@@ -105,6 +105,8 @@
       
       // Pre-compute target size and time pressure (used multiple times)
       const targetSize = target <= 20 ? 'small' : (target <= 50 ? 'medium' : 'large');
+      const diffMaxBonus = BOT_DIFFICULTY === 'hard' ? 2 : (BOT_DIFFICULTY === 'easy' ? -2 : 0);
+      const maxLength = Math.max(3, (targetSize === 'small' ? 5 : (targetSize === 'medium' ? 7 : 9)) + diffMaxBonus);
       const timePressure = gameState.turnTimer < 10;
       const veryLowTime = gameState.turnTimer < 5;
       
@@ -498,8 +500,6 @@
           }
           
           // Can't score with one card - decide if we should extend
-          const diffMaxBonus = BOT_DIFFICULTY === 'hard' ? 2 : (BOT_DIFFICULTY === 'easy' ? -2 : 0);
-          const maxLength = Math.max(3, (targetSize === 'small' ? 5 : (targetSize === 'medium' ? 7 : 9)) + diffMaxBonus);
           // If minimum length is set, ensure we can reach it
           const effectiveMaxLength = botMinExpressionLength > 0 ? Math.max(maxLength, botMinExpressionLength + 2) : maxLength;
           const canExtend = gameState.playfield.length < effectiveMaxLength;

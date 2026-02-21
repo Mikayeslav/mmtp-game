@@ -1019,6 +1019,7 @@ body {
   left: 20px;
   top: 50%;
   transform: translateY(-50%);
+  z-index: 500;
   background: var(--card-bg);
   border: 2px solid var(--border);
   border-radius: 8px;
